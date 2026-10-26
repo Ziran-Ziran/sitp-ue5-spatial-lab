@@ -42,6 +42,8 @@ RGB-D 位姿回放入口为 `python scripts/render_replay_experiment.py --help`�
 
 `scripts/pitch_sweep_experiment.py` 为同一冻结源帧采集新的水平/45°/垂直向下静态视图；`ue5/tools/pitch_sweep_report.py` 比较单视图与三视图的局部路径。视角是明确的相对外参，不是假定历史相机曾实际转动。
 
+`scripts/depth_path_experiment.py` 将冻结的深度局部路径经连续足迹检查后交给真实 CharacterMovement，保留全部规划/检查/执行失败。几何只读隔离深度，重置与动作反馈明确使用引擎位姿；当前是离线观察到实际运动的局部探针，尚未在线采图或重规划。
+
 ## 可选的本地场景
 
 已提供[两项目本地场景接入](docs/local-scenes.md)：共用源素材登记，各自维护独立 UE 实验副本；素材与本机绑定不上传 Git，也不构成训练或导航已验收。

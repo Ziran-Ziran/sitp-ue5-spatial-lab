@@ -137,3 +137,9 @@ python ue5/tools/pitch_sweep_report.py --input output/pitch-execution-run1/captu
 ```
 
 控制地图/输出均须新建；来源计划和搜索任务需满足原始状态哈希快照协议。启动器核对控制脚本及全部导入源码、DLL 和实际输出目录。重任务仍使用共享锁与进程树超时；几何报告只用 CPU。新分支不改写旧水平图像或原始搜索结果，也不把离线探针写成已执行路线。
+
+## 深度路径的物理转移
+
+`scripts/depth_path_experiment.py` 的 prepare/synthetic/run 复现命令见 navigation-baseline.md。prepare 重算所有帧并保存确定性的冻结计划；run 再核对源像素、原采集状态快照、地图和几何源码。几何输出之后才由独立层读取源位姿做重置/动作坐标转换。当前 DLL 的内置无 NavMesh 控制必须通过；物理执行用 NullRHI，无需重新渲染图像。若源码或源输入改变，另建计划和输出，不改写旧记录。
+
+直接动作执行器会在墙体阻挡、无进展、轨迹偏离、重置异常或预算耗尽时失败。先检查 execution.json 的实际轨迹/反馈及 game.job.log/status，再针对原因修复；不要按城市真值放宽足迹检查或只执行已知成功帧。冻结探针的转移结果与语义搜索、在线 RGB-D 闭环分别报告。

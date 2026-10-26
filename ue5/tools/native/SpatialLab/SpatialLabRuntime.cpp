@@ -1,6 +1,7 @@
 #include "SpatialLabRuntime.h"
 #include "SpatialLabVisibility.h"
 #include "SpatialLabSearch.h"
+#include "SpatialLabDepthRunner.h"
 #include "AIController.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
@@ -37,6 +38,11 @@ void ASpatialLabGameMode::StartPlay()
 {
     Super::StartPlay();
     FString Input;
+    if (FParse::Value(FCommandLine::Get(),TEXT("SITPDepthPlan="),Input))
+    {
+        GetWorld()->SpawnActor<ASpatialLabDepthRunner>();
+        return;
+    }
     if (FParse::Value(FCommandLine::Get(), TEXT("SITPSearch="), Input))
     {
         GetWorld()->SpawnActor<ASpatialLabSearchRunner>();
