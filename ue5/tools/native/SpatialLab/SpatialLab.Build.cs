@@ -8,7 +8,7 @@ public class SpatialLab : ModuleRules
         PublicDependencyModuleNames.AddRange(new string[] {
             "Core", "CoreUObject", "Engine", "NavigationSystem", "AIModule"
         });
-        PrivateDependencyModuleNames.AddRange(new string[] { "Json", "JsonUtilities" });
+        PrivateDependencyModuleNames.AddRange(new string[] { "Json", "JsonUtilities", "RenderCore", "RHI", "ImageWrapper" });
         if (Target.bBuildEditor)
             PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "PythonScriptPlugin" });
     }
