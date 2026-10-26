@@ -223,3 +223,22 @@ python scripts/compare_support_plane_transfer.py --project $sceneProject --captu
 ```
 
 最后一条只使用 CPU，重建两模型完整计划并重算实际轨迹/反馈，核对原始生产者、当前模型源码、DLL、地图、控制快照和所有源像素。源码或输入改变时另建计划/输出，不改原始记录；离线 approved 数、物理到达数和颜色目标成功率分别报告。
+
+
+## 保存观测的颜色/可见性失败诊断
+
+尺寸候选仅作 CPU 同图消融，不运行新动作：
+
+```powershell
+python ue5/tools/marker_extent_replay.py --execution output/city-marker-legacy-run1/execution.json --out output/marker-extent-replay-run1.json
+```
+
+评测诊断先重建原始 native/控制/任务/像素和动作，再读独立真值。此次历史 worker 对应以下完整提交；自己的保存运行需使用与其原 guarded 字节匹配的提交，不能用当前分支名或回填旧哈希。输出文件必须新建。
+
+```powershell
+$workerCommit = 'c3bd856bf6d938934770d8d7f629299b91421e51'
+python scripts/marker_perception_diagnostics.py --run output/marker-legacy-run1 --project $sceneProject --worker-source-commit $workerCommit --out output/marker-proxy-controls-run1.json
+python scripts/marker_perception_diagnostics.py --run output/city-marker-legacy-run1 --scene output/city-marker-scene-run1 --controls output/marker-legacy-run1 --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --project $sceneProject --worker-source-commit $workerCommit --out output/city-marker-proxy-run1.json
+```
+
+第一条诊断必须先通过保存中性场景的可见/隐藏/遮挡/无效出生控制。第二条仍只做 CPU 评测，没有 UE 启动、目标位姿输入策略或新的导航成功。`city_marker_experiment.py audit/compare` 也可显式传 `--worker-source-commit`；不传时继续严格核对当前 worker。历史验证不修改工作区、旧输出或原始 status/job；缺失依赖/代码变化/错误源提交直接失败。

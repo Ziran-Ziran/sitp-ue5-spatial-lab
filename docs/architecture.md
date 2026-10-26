@@ -30,3 +30,6 @@ GameScaling 不是任何一环的必需依赖。未来语义模块输入观测/�
 
 
 `support_plane_grid.py` 是独立的观测地面模型：只在已反投影点中拟合近脚底局部斜面，把实际脚底高度固定为零，保留未知区域和观测障碍。直立胶囊的净空按坡度跨足迹变化保守扩展，不能把斜面残差直接当作物理高度。`support_plane_replay.py` 对同一隔离像素比较水平/坡面模型；`support_plane_execution.py` 在像素规划后才读取原位姿生成冻结动作。新 schema 2 明确模型与 scope，旧在线/颜色策略和 DLL 不改变；冻结路径转移、在线观察、语义任务及物理坡道验收分别报告。
+
+
+`marker_extent.py`/`marker_extent_replay.py` 单独评估已知受控盒体的尺寸上界；默认颜色策略保持原输出，尺寸先验没有接入 Game 任务或 worker 请求。`marker_visibility.py`/`marker_visibility_report.py` 只在评测侧使用原相机、盒体真值与保存深度，诊断投影、颜色、组件处理与选择阶段，不能作为精确实例可见性真值。`marker_perception_diagnostics.py` 先核验原执行再进行这项分析；评测模块不进入视觉 worker 导入闭包。

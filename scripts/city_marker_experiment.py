@@ -16,6 +16,7 @@ from compare_visual_marker_runs import audit_run as marker_controls,unique_argum
 from city_marker_tasks import build_tasks,build_placement_plan,VARIANTS
 from visual_marker_report import evaluate
 from stage_navigation import unlinked
+from historical_worker import historical_bindings
 
 
 def norm(path):return str(path).replace('\\','/')
@@ -66,11 +67,11 @@ def inspect_scene(args,build):
     return descriptor,original,binding,map_file
 
 
-def audit(args,directory,build):
+def audit(args,directory,build,*,worker_source_commit=None):
     directory=Path(directory).absolute();descriptor,original,binding,map_file=inspect_scene(args,build)
     tasks=read(directory/'tasks.json');variant=tasks['planner_variant']
     if tasks!=build_tasks(descriptor['map'],descriptor['map_sha256'],original,binding,variant):raise ValueError('changed/filtered original city marker tasks')
-    marker_controls(args.controls,args.project,build)
+    marker_controls(args.controls,args.project,build,worker_source_commit=worker_source_commit)
     game=completed_job(directory/'game.job.json');command=game['command'];hashes={Path(p).absolute():sha for p,sha in game['input_sha256'].items()}
     if len(command)<3 or Path(command[1]).absolute()!=args.project.absolute() or command[2]!=tasks['map'] or sum(t.lower().endswith('.uproject') for t in command)!=1:
         raise ValueError('wrong actual city marker project/map')
@@ -79,15 +80,20 @@ def audit(args,directory,build):
         unique_argument(command,arg)
     required={ROOT/build['binary']:build['binary_sha256'],map_file:tasks['map_sha256'],directory/'tasks.json':file_hash(directory/'tasks.json'),
         args.scene.absolute()/'scene.json':file_hash(args.scene.absolute()/'scene.json'),args.scene.absolute()/'truth.json':file_hash(args.scene.absolute()/'truth.json')}
-    required.update({p:file_hash(p) for p in policy_sources('visual_marker_depth_policy')})
+    historical={};proof=None
+    if worker_source_commit is not None:
+        proof=historical_bindings(ROOT,worker_source_commit,'visual_marker_depth_policy',game['input_sha256'])
+        historical={ROOT/'ue5/tools'/name:row['recorded_sha256'] for name,row in proof['files'].items()}
+    required.update(historical or {p:file_hash(p) for p in policy_sources('visual_marker_depth_policy')})
     for name in ('tasks.json','game.job.json','game.job.status.json','fixture.job.json','fixture.job.status.json'):
         path=args.controls.absolute()/name;required[path]=file_hash(path)
-    if any(hashes.get(p)!=sha or file_hash(p)!=sha for p,sha in required.items()):raise ValueError('city run changes actual worker/native/map/task/control/scene bindings')
+    if any(hashes.get(p)!=sha or p not in historical and file_hash(p)!=sha for p,sha in required.items()):raise ValueError('city run changes actual worker/native/map/task/control/scene bindings')
     raw_hash=file_hash(directory/'execution.json');truth_path=args.scene.absolute()/'truth.json';truth_hash=file_hash(truth_path)
     report=evaluate(tasks,read(directory/'execution.json'),directory/'capture',read(truth_path))
     if file_hash(directory/'execution.json')!=raw_hash or file_hash(truth_path)!=truth_hash:raise ValueError('raw city/truth changed during audit')
     if not report['finished'] or any(r['failure_reason']=='invalid_execution' for r in report['runs']):raise ValueError('incomplete or invalid actual city marker evidence')
     report.update(raw_execution_sha256=raw_hash,independent_truth_sha256=truth_hash,scene_sha256=file_hash(args.scene.absolute()/'scene.json'))
+    if proof is not None:report['worker_source_binding']=proof
     return report
 
 
@@ -96,13 +102,15 @@ def main():
     for name in ('project','capture','capture-job','out'):parser.add_argument('--'+name,type=Path,required=True)
     for name in ('engine-root','lock','scene','controls'):parser.add_argument('--'+name,type=Path)
     parser.add_argument('--runs',nargs=2,type=Path);parser.add_argument('--planner-variant',choices=VARIANTS)
+    parser.add_argument('--worker-source-commit',help='audit-only immutable historical worker SHA; original guarded bytes must match')
     parser.add_argument('--experiment-map');parser.add_argument('--start-before');parser.add_argument('--finish-before');args=parser.parse_args()
     project=args.project.absolute();unlinked(project)
+    if args.worker_source_commit is not None and args.action not in ('audit','compare'):raise ValueError('historical source binding is evaluation-only')
     if not re.fullmatch(r'local/scenes/[a-z0-9-]+/workspace/UE5/[A-Za-z][A-Za-z0-9_]*\.uproject',project.relative_to(ROOT).as_posix()):raise ValueError('independent scene copy required')
     build=verify_build(ROOT,project)
     if args.action in ('audit','compare'):
         if not args.scene or not args.controls or not args.runs:raise ValueError('scene, current controls and actual runs required')
-        reports=[audit(args,d,build) for d in args.runs]
+        reports=[audit(args,d,build,worker_source_commit=args.worker_source_commit) for d in args.runs]
         if args.action=='compare':
             if {r['planner_variant'] for r in reports}!=set(VARIANTS) or len({r['scene_sha256'] for r in reports})!=1:
                 raise ValueError('both complete variants on the same overlay required')
