@@ -12,6 +12,17 @@ from grid_path import astar
 from rendered_input_report import inspect_sequence,file_hash,unlinked
 
 
+def plan_grid(grid,start,goal):
+    config,states,free=grid['config'],grid['states'],grid['free']
+    cells=[config.cell(*point) for point in (start,goal)]
+    plan=astar(free,*cells,resolution_m=config.resolution_m)
+    for label,cell in zip(('start','goal'),cells):
+        if plan['status']==label+'_blocked':
+            plan['status']=label+{-1:'_unobserved',0:'_clearance_blocked',1:'_obstacle',2:'_negative_hazard'}[int(states[cell])]
+    plan['path_right_forward_m']=[config.center(cell) for cell in plan['cells']]
+    return plan
+
+
 def evaluate_sequence(directory,config,*,start=(0,0),goal=(0,3)):
     directory=Path(directory).absolute();unlinked(directory)
     for point in (start,goal):
@@ -39,12 +50,7 @@ def evaluate_sequence(directory,config,*,start=(0,0),goal=(0,3)):
         grid=depth_grid(cv2.imread(str(path),cv2.IMREAD_UNCHANGED),sensor['calibration'],config)
         if file_hash(path)!=statistics['depth_sha256']:raise ValueError('depth changed while processing')
         states,free=grid['states'],grid['free']
-        cells=[config.cell(*point) for point in (start,goal)]
-        plan=astar(free,*cells,resolution_m=config.resolution_m)
-        for label,cell in zip(('start','goal'),cells):
-            if plan['status']==label+'_blocked':
-                plan['status']=label+{-1:'_unobserved',0:'_clearance_blocked',1:'_obstacle',2:'_negative_hazard'}[int(states[cell])]
-        plan['path_right_forward_m']=[config.center(cell) for cell in plan['cells']]
+        plan=plan_grid(grid,start,goal)
         result['path_found_frames']+=plan['status']=='path_found'
         result['frames'].append(dict(frame_id=index,t_source_sim_s=stamps[index]['t_source_sim_s'],
             observed_ground_cells=int(np.count_nonzero(states==0)),obstacle_cells=int(np.count_nonzero(states==1)),

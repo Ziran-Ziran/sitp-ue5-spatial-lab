@@ -127,3 +127,13 @@ python ue5/tools/depth_grid_replay.py --input output/render-execution-run1/captu
 ```
 
 输入只传隔离的 input 目录，输出目录必须不存在。该 CPU 工具保存每帧网格、余量、路径或失败与源文件哈希，不启动 UE/GPU、不读引擎评测目录。默认眼高、相机姿态与格子假设见 data-contract.md；不能把未知脚边区域补成空地，或把局部路径探针当作实际目标导航。
+
+## 固定向下视角的近场覆盖
+
+```powershell
+python scripts/pitch_sweep_experiment.py controls --engine-root $ueRoot --project $sceneProject --lock $resourceLock --map-prefix /Game/SpatialLab/PitchControls_run1 --out output/pitch-controls-run1
+python scripts/pitch_sweep_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --base-plan output/render-plan-run1.json --observations output/search-execution-run1/observations.jsonl --source-job output/search-execution-run1/game.job.json --controls output/pitch-controls-run1/capture --controls-job output/pitch-controls-run1/render.job.json --out output/pitch-execution-run1
+python ue5/tools/pitch_sweep_report.py --input output/pitch-execution-run1/capture/input --out output/pitch-grid-run1
+```
+
+控制地图/输出均须新建；来源计划和搜索任务需满足原始状态哈希快照协议。启动器核对控制脚本及全部导入源码、DLL 和实际输出目录。重任务仍使用共享锁与进程树超时；几何报告只用 CPU。新分支不改写旧水平图像或原始搜索结果，也不把离线探针写成已执行路线。

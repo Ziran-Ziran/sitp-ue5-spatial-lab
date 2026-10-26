@@ -52,7 +52,7 @@ class GridConfig:
                 self.forward_min_m+(row+.5)*self.resolution_m]
 
 
-def unproject(depth,calibration,*,eye_height_m):
+def unproject(depth,calibration,*,eye_height_m,pitch_down_deg=0):
     """Integer pixel centers; optical mm depth -> local right/forward/up meters."""
     keys=('w','h','fx','fy','cx','cy')
     if not isinstance(calibration,dict) or not set(keys)<=set(calibration):raise ValueError('missing independent intrinsics')
@@ -62,12 +62,15 @@ def unproject(depth,calibration,*,eye_height_m):
             or calibration['fx']<=0 or calibration['fy']<=0
             or not 0<=calibration['cx']<w or not 0<=calibration['cy']<h
             or not isinstance(depth,np.ndarray) or depth.dtype!=np.uint16 or depth.shape!=(h,w)
-            or np.any((depth>30000)&(depth!=65535)) or not .1<=number(eye_height_m)<=3):
+            or np.any((depth>30000)&(depth!=65535)) or not .1<=number(eye_height_m)<=3
+            or not -90<=number(pitch_down_deg)<=90):
         raise ValueError('expected bounded uint16 optical-mm depth and valid independent intrinsics/eye height')
     rows,columns=np.nonzero((depth>0)&(depth<65535))
     forward=depth[rows,columns].astype(float)/1000
     right=(columns-calibration['cx'])*forward/calibration['fx']
-    up=eye_height_m-(rows-calibration['cy'])*forward/calibration['fy']
+    up=-(rows-calibration['cy'])*forward/calibration['fy']
+    theta=math.radians(pitch_down_deg)
+    forward,up=forward*math.cos(theta)+up*math.sin(theta),-forward*math.sin(theta)+up*math.cos(theta)+eye_height_m
     return np.column_stack((right,forward,up))
 
 
@@ -91,6 +94,21 @@ def clearance_mask(states,resolution_m,radius_m):
 def depth_grid(depth,calibration,config):
     if not isinstance(config,GridConfig):raise ValueError('explicit GridConfig required')
     points=unproject(depth,calibration,eye_height_m=config.eye_height_m)
+    return points_grid(points,config,condition='depth_geometry_upright_eye_height_prior')
+
+
+def multiview_grid(views,calibration,config):
+    if not isinstance(config,GridConfig) or not isinstance(views,(list,tuple)) or not 1<=len(views)<=3:
+        raise ValueError('one to three explicit calibrated views required')
+    pitches=[pitch for pitch,_ in views]
+    if any(type(pitch) not in (int,float) or pitch not in (0,45,90) for pitch in pitches) or len(set(pitches))!=len(pitches):
+        raise ValueError('unique fixed downward pitches 0/45/90 required')
+    points=np.concatenate([unproject(depth,calibration,eye_height_m=config.eye_height_m,pitch_down_deg=pitch)
+                           for pitch,depth in views])
+    return points_grid(points,config,condition='depth_geometry_calibrated_pitch_eye_height_prior')
+
+
+def points_grid(points,config,*,condition):
     columns=np.floor((points[:,0]-config.right_min_m)/config.resolution_m).astype(int)
     rows=np.floor((points[:,1]-config.forward_min_m)/config.resolution_m).astype(int)
     inside=(rows>=0)&(rows<config.shape[0])&(columns>=0)&(columns<config.shape[1])
@@ -105,5 +123,5 @@ def depth_grid(depth,calibration,config):
     return dict(config=config,states=states,free=clearance_mask(states,config.resolution_m,config.radius_m),
         valid_depth_points=len(points),in_bounds_points=int(inside.sum()),
         floor_samples=int(ground.sum()),obstacle_samples=int(obstacle.sum()),negative_samples=int(negative.sum()),
-        condition='depth_geometry_upright_eye_height_prior',
+        condition=condition,
         interpretation='sampled local estimate; no engine geometry, inferred unseen floor, slope or physics guarantee')

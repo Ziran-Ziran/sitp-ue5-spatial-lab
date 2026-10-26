@@ -70,3 +70,13 @@ experiments 用按 scene 的 train/validation/test 互斥标识；不能从同�
 - 只在地面支持格中规划。障碍、未知与边界外区域均用 `radius/resolution + sqrt(2)/2` 格的中心距离作保守余量，默认半径 0.34 m；格子外接圆近似会拒绝部分实际足够宽的通道。A* 使用 8 邻域、欧氏启发与米制边长，对角移动还要求两个正交邻格可走；默认最多扩展 250000 格。
 - 默认探针是固定局部 `(right=0,forward=0)` 到 `(0,3m)`，与语义目标和评测真值无关。状态包括 path_found、start/goal_unobserved、obstacle、negative_hazard、clearance_blocked、outside、no_path 与 expansion_budget。路径经过格心，路径长度不包含任意连续查询点到格心的偏移。报告地面/障碍/负空间/未知/余量格数和 CPU 耗时，所有失败保留。
 - 水平相机通常看不到脚边地面，当前静态回放的实际起点可能全部未知。不得偷偷换成已观察的起点或假设脚边走廊可通行。合成已支持区域内的路径检查应与真实起点失败分别标注；新增向下观察必须生成新传感器数据及明确的相对外参合同。
+
+## 固定相对俯仰静态观察（schema_version 1）
+
+`pitch_sweep_protocol.py` 在未修改的基础回放计划外包装固定 views 与 `sweep_sha256`。三视角固定为 level/0°、down45/45°、nadir/90°，向下为正；每个源帧的位置和 heading 一致，曝光与基础计划一致。源任务、地图字节、原任务状态快照和帧选择继续使用原来源校验。它采集新静态图像，不表示历史搜索相机实际转动过，也没有测量转动耗时。
+
+- 算法输入为 `input/sequence_NNN/{level,down45,nadir}/`；每个 view 只含 sensor.json、timestamps.jsonl、frames/、depth/。modality 为 `rgbd_offline_calibrated_pitch_view`，传感器外参仅含 `camera_mount=coincident_eye_pure_pitch_relative_to_level_heading` 和 `relative_pitch_down_deg`，不含世界位置、全局朝向、源 run/实体标签或地图。三 view 帧数、源时刻和曝光须完全一致。
+- 相机光轴深度向量的局部 right 为 `x`、forward 为 `z`、相对 up 为 `-y`。俯角 θ 后 `forward=z*cosθ+up*sinθ`、`up=-z*sinθ+up*cosθ+eye_height`；只在同一个静态源帧融合，不跨源时刻融合位姿。仍使用原格宽、眼高、地面带、身体高度与半径。三幅深度带来额外观测和计算，不能归因于同等观测预算下的策略改进。
+- 评测侧保存每 view 的实际相机位置与旋转、源帧/时间对应及每对 PNG 哈希。位置误差上限 0.001 cm，旋转用 UE 基向量比较，允许垂直向下时等价的欧拉角表示。输入检查继续核对全部图像、源时刻、视角和原来源；不能交换 view 文件或补写时间。
+- 真实内置几何控制包含固定高度平地、中心墙体、两米宽且降低一米的通道；检查已知光轴深度、脚边观察、平地路径以及墙/落差阻挡。控制通过是渲染与离线几何验收，不是 CharacterMovement 导航验收。
+- `pitch_sweep_report.py` 保留同帧水平/三视角路径结果、危险与未知格子、输入哈希及 CPU 耗时。固定局部探针仍为 `(0,0)` 到 `(0,3m)`；控制案例单独使用 `(0,4m)`。这些是相关帧上的几何可用性，不能当作独立导航回合成功率。眼高/参考地面先验在坡地上仍可能保守拒绝起点、终点或路径，不按真值放宽。
