@@ -35,4 +35,6 @@ GameScaling 不是任何一环的必需依赖。未来语义模块输入观测/�
 `marker_extent.py`/`marker_extent_replay.py` 单独评估已知受控盒体的尺寸上界；默认颜色策略保持原输出，尺寸先验没有接入 Game 任务或 worker 请求。`marker_visibility.py`/`marker_visibility_report.py` 只在评测侧使用原相机、盒体真值与保存深度，诊断投影、颜色、组件处理与选择阶段，不能作为精确实例可见性真值。`marker_perception_diagnostics.py` 先核验原执行再进行这项分析；评测模块不进入视觉 worker 导入闭包。
 
 
-marker_goal_horizon.py 对同一个 RGB-D 检出目标显式比较三米局部规划目标与已有一米执行前缀视距；两者均只执行至多一米后重观察。视觉 schema 3 将 goal_horizon_policy 绑定到任务、每回合、请求、响应和原生执行，schema 1/2 保持原行为。三米端点未知时一米查询可能继续，近墙处一米端点也可能阻断原可绕行路线；独立 CPU 用例同时保留这两种情况。比较器固定规划器、地图、构建和规范任务集，并要求每个条件自己的完整控制记录，不能把历史反事实动作写成实际到达。
+`marker_goal_horizon.py` 对同一个 RGB-D 检出目标显式比较三米局部规划目标与已有一米执行前缀视距；两者均只执行至多一米后重观察。视觉 schema 3 将 `goal_horizon_policy` 绑定到任务、每回合、请求、响应和原生执行，schema 1/2 保持原行为。三米端点未知时一米查询可能继续，近墙处一米端点也可能阻断原可绕行路线；独立 CPU 用例同时保留这两种情况。比较器固定规划器、地图、构建和规范任务集，并要求每个条件自己的完整控制记录，不能把历史反事实动作写成实际到达。
+
+`support_physics_geometry.py` 是独立合成物理套件的像素规划入口，与 `support_physics_cases.py` 构造定义及 `support_physics_plan.py` 世界位姿桥分离。三俯角深度先产生固定模型/查询的局部路线，再由桥生成原生 DepthRunner 的冻结动作。`support_physics_experiment.py` 验证构造、模型、原始生产者和全部实际轨迹，独立给出二十项模型结果、三项刻意参考和危险批准；不修改原生协议、在线策略或高度合同。
