@@ -5,11 +5,13 @@ Fixed HSV/height rules, no learned furniture semantics or engine metadata.
 import cv2
 import numpy as np
 from local_depth_grid import unproject
+from marker_extent import VARIANTS,inspect_extent
 
 CATEGORIES={'red_marker','blue_marker'}
 
 
-def detect_markers(color,depth,calibration):
+def detect_markers(color,depth,calibration,*,perception_variant=None):
+    if perception_variant is not None and perception_variant not in VARIANTS:raise ValueError('explicit controlled perception variant required')
     # Validate metric depth/intrinsics even when no color region is found.
     unproject(depth,calibration,eye_height_m=1.5)
     if (not isinstance(color,np.ndarray) or color.dtype!=np.uint8
@@ -41,12 +43,19 @@ def detect_markers(color,depth,calibration):
                 points=unproject(np.where(valid,depth,0).astype(np.uint16),calibration,eye_height_m=1.5)
                 center=np.median(points,axis=0).tolist()
                 if not .4<=center[2]<=1.6:reason='outside_marker_height_prior'
-                else:
+                if reason is None and perception_variant=='known_box_extent_v1':
+                    item['extent_prior']=inspect_extent(points)
+                    if not item['extent_prior']['accepted']:reason='outside_known_marker_box_extent'
+                if reason is None:
                     item['position_right_forward_up_m']=center
                     item['planar_range_m']=float(np.linalg.norm(center[:2]));detections.append(item)
         if reason:rejected.append(dict(item,reason=reason))
     detections.sort(key=lambda item:(item['planar_range_m'],item['category'],item['component_id']))
-    return dict(schema_version=1,condition='fixed_hsv_visual_marker_detector',detections=detections,rejected=rejected,
+    result=dict(schema_version=1,condition='fixed_hsv_visual_marker_detector',detections=detections,rejected=rejected,
         components_total=len(regions),components_processed=min(64,len(regions)),component_budget_exhausted=len(regions)>64,
         coordinates='local right forward up meters; explicit level camera and1.5m eye-height prior',
         interpretation='controlled red/blue marker categories and depth position only; not furniture recognition or calibrated semantic confidence')
+    if perception_variant=='known_box_extent_v1':
+        result.update(schema_version=2,condition='fixed_hsv_known_box_extent_visual_marker_detector',perception_variant=perception_variant,
+            interpretation='fixed color plus known controlled-box upper extent prior; not general object identity or semantic confidence')
+    return result

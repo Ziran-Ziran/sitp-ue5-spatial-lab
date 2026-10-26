@@ -14,6 +14,7 @@ from online_depth_experiment import policy_sources
 from visual_marker_experiment import control_acceptance
 from visual_marker_report import evaluate
 from visual_marker_tasks import validate_tasks
+from historical_worker import historical_bindings
 
 
 def unique_argument(command,expected):
@@ -22,7 +23,7 @@ def unique_argument(command,expected):
         raise ValueError('unique exact marker producer argument required: '+key)
 
 
-def audit_run(directory,project,build):
+def audit_run(directory,project,build,*,worker_source_commit=None):
     directory=Path(directory).absolute();project=Path(project).absolute()
     tasks=validate_tasks(read(directory/'tasks.json'))
     if tasks['schema_version']!=2:raise ValueError('explicit version-two planner condition required')
@@ -46,16 +47,20 @@ def audit_run(directory,project,build):
     if fixture_hashes.get(script)!=file_hash(script):raise ValueError('changed marker fixture generator')
     required={directory/'tasks.json':file_hash(directory/'tasks.json'),directory/'truth.json':file_hash(directory/'truth.json'),
         project.parent/'Content'/(tasks['map'][len('/Game/'):]+'.umap'):tasks['map_sha256']}
-    required.update({p:file_hash(p) for p in policy_sources('visual_marker_depth_policy')})
+    historical={};proof=None
+    if worker_source_commit is not None:
+        proof=historical_bindings(ROOT,worker_source_commit,'visual_marker_depth_policy',game['input_sha256'])
+        historical={ROOT/'ue5/tools'/name:row['recorded_sha256'] for name,row in proof['files'].items()}
+    required.update(historical or {p:file_hash(p) for p in policy_sources('visual_marker_depth_policy')})
     required[ROOT/'scripts/visual_marker_experiment.py']=file_hash(ROOT/'scripts/visual_marker_experiment.py')
-    if any(game_hashes.get(p)!=sha or file_hash(p)!=sha for p,sha in required.items()):raise ValueError('marker inputs/source differ from actual locked producer')
+    if any(game_hashes.get(p)!=sha or p not in historical and file_hash(p)!=sha for p,sha in required.items()):raise ValueError('marker inputs/source differ from actual locked producer')
     fixture_record=read(directory/'fixture.json')
     if fixture_record['map']!=tasks['map'] or fixture_record['navmesh_build_called'] is not False or fixture_record['navigation_data_actors']!=0:
         raise ValueError('wrong marker fixture evidence')
     record=read(directory/'execution.json');truth=read(directory/'truth.json');report=evaluate(tasks,record,directory/'capture',truth)
     acceptance=control_acceptance(report,record)
     if not acceptance['passed']:raise ValueError('incomplete or invalid marker experiment')
-    return dict(variant=tasks['planner_variant'],report=report,truth_entities=truth['entities'],
+    return dict(variant=tasks['planner_variant'],report=report,truth_entities=truth['entities'],worker_source_binding=proof,
         fixture_source_sha256=file_hash(script),native_binary_sha256=build['binary_sha256'],
         raw_execution_sha256=file_hash(directory/'execution.json'),manifest_sha256=tasks['manifest_sha256'],
         game_spec_sha256=file_hash(directory/'game.job.json'),game_status_sha256=file_hash(directory/'game.job.status.json'))
