@@ -107,3 +107,9 @@ python ue5/tools/inspect_slam_input.py <image-directory-or-video-or-map> --out <
 这些检查都不启动训练、GPU、云资源、UE、游戏输入或模型下载。实验输出留在忽略目录 output/，不得把旧工程的绝对路径当本机事实。
 
 本地蒙德城区素材接入与独立 UE 副本见 [场景接入说明](local-scenes.md)。
+
+## 独立 oracle 导航实验
+
+见[导航基线复现](navigation-baseline.md)。`scripts/navigation_experiment.py` 提供 prepare/run/synthetic；它将本仓库的 SpatialLab 源码暂存到独立场景副本，使用本机 UE 5.8 C++ 工具链编译。不会把 GSVSLAM 的资产缺失问题隐式当成已解决，也不依赖该采集模块或另一仓库。
+
+UE/build 子进程必须使用显式共享锁和超时，Windows Job Object 覆盖整个进程树；锁忙最多等待 60 秒，随后保留状态并退出，不夺锁。完成截止在取得锁后重算，并保留 20 秒清理预算。CPU 离线模块无需该锁。普通 CI 不运行 UE 集成验收；本机合成 UE 和场景结果需独立报告。
