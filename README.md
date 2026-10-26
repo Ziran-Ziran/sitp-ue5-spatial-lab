@@ -54,6 +54,8 @@ RGB-D 位姿回放入口为 `python scripts/render_replay_experiment.py --help`�
 
 保存观测还可用 `scripts/marker_perception_diagnostics.py` 区分颜色、组件过滤与几何可见性代理；真值只留在评测侧。已知色标尺寸的离线消融损失了原有效关联，保留负结果，未接入在线策略。
 
+`scripts/support_physics_experiment.py` 另提供独立坡面/净空物理控制：十个固定合成用例的水平/支撑面模型原执行合同成功为2/10与5/10，支撑面三项实际运动仍因原高度限制失败。低顶与斜顶的直接参考确有物理阻挡；未测量拒绝与刻意参考接触分开，不能解释为城市成功。
+
 ## 可选的本地场景
 
 已提供[两项目本地场景接入](docs/local-scenes.md)：共用源素材登记，各自维护独立 UE 实验副本；素材与本机绑定不上传 Git，也不构成训练或导航已验收。

@@ -269,3 +269,15 @@ python scripts/compare_marker_horizon_runs.py --project $sceneProject --scene ou
 ```
 
 新控制必须通过原完整验收，实际城市运行前核验相同视距的控制。所有重任务继续传原共享锁及截止时间参数；CPU 比较器重建全部原任务、来源和实际像素/动作/轨迹，不补写历史原始输出。
+
+## 独立坡面/低顶物理控制
+
+当前 DLL 先重新通过既有 supplied-route 运动控制，再在全新自有地图采集固定合成几何的 RGB-D，并执行两种地面模型的冻结路线与三条独立参考。它不修改城市、在线策略、原生协议或任何高度预算：
+
+```powershell
+python scripts/depth_path_experiment.py synthetic --engine-root $ueRoot --project $sceneProject --lock $resourceLock --experiment-map /Game/SpatialLab/SupportRouteControls_run1 --out output/support-route-controls-run1
+python scripts/support_physics_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --controls output/support-route-controls-run1 --experiment-map /Game/SpatialLab/SupportPhysics_run1 --out output/support-physics-run1
+python scripts/support_physics_experiment.py audit --project $sceneProject --controls output/support-route-controls-run1 --run output/support-physics-run1 --out output/support-physics-audit-run1.json
+```
+
+实际重任务继续附加本节的共享锁和开始/结束截止参数；每次输出及地图必须新建。最后一条仅用 CPU，核对原完整生产者守卫、固定步长参数和全部像素，再重算二十项模型路线及三项参考的实际轨迹/评分。`report.json` 的控制检查与各模型完整分母分别阅读，尤其保留高度合同失败、危险批准、未测量 null 与刻意参考接触。原始私有产物不上传仓库。
