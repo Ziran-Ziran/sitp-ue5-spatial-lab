@@ -67,6 +67,8 @@ def audit_execution(task,raw,artifacts,attempt,run_index):
                 raise ValueError('movement/candidate after observation or worker failure')
             continue
         request=event['request']
+        if (request.get('schema_version')!=(2 if 'planner_variant' in task else 1)
+                or request.get('planner_variant')!=task.get('planner_variant')):raise ValueError('changed visual planner variant/schema')
         if (request!=read(folder/'request.json') or request['attempt_id']!=attempt or request['run_id']!=task['run_id']
                 or request['step_id']!=step or request['t_sim_s']!=timestamp or request['category']!=task['category']
                 or request['consecutive_empty_views']!=empty or Path(request['input_dir']).absolute()!=folder/'input'):
@@ -144,7 +146,7 @@ def validate_truth(truth,map_path):
 
 def evaluate(tasks,record,artifacts,truth):
     validate_tasks(tasks);validate_truth(truth,tasks['map'])
-    if (record['condition']!=CONDITION or record['evidence_kind']!='ue_game_world_rgb_marker_depth_target_search'
+    if (record.get('schema_version')!=tasks['schema_version'] or record['condition']!=CONDITION or record['evidence_kind']!='ue_game_world_rgb_marker_depth_target_search'
             or record['executor']!='CharacterMovement_AddMovementInput' or record['position_reference']!='capsule_feet_cm'
             or record['pose_source']!=POSE_SOURCE or record['map']!=tasks['map'] or record['scope']!=tasks['scope']
             or record['manifest_sha256']!=tasks['manifest_sha256'] or record['expected_runs']!=12):raise ValueError('wrong visual native evidence or task set')
@@ -171,7 +173,7 @@ def evaluate(tasks,record,artifacts,truth):
                         matched_entity_id=matches[0]['entity_id'] if matches else None)
             except (ValueError,KeyError,TypeError,IndexError,OSError) as error:score.update(failure_reason='invalid_execution',validation_error=str(error))
         scores.append(score)
-    return dict(schema_version=1,condition=CONDITION,attempt_id=attempt,manifest_sha256=tasks['manifest_sha256'],
+    return dict(schema_version=tasks['schema_version'],planner_variant=tasks.get('planner_variant','legacy_centers'),condition=CONDITION,attempt_id=attempt,manifest_sha256=tasks['manifest_sha256'],
         finished=record.get('finished') is True and len(actual)==len(expected),overall=summarize(scores),
         by_category={category:summarize([r for r in scores if r['category']==category]) for category in sorted(CATEGORIES)},runs=scores,
         interpretation='controlled red/blue RGB-marker categories, optical-depth goals and direct movement; engine pose for reset/actuation only, synthetic fixture, no furniture/generalization or real-time claim')

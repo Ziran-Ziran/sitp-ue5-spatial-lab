@@ -20,3 +20,13 @@ class VisualMarkerTaskTests(unittest.TestCase):
         for mutate in (lambda t:t['runs'].pop(),lambda t:t['runs'][0].update(goal_cm=[0,0,0])):
             tasks=copy.deepcopy(original);mutate(tasks)
             with self.assertRaises(ValueError):validate_tasks(tasks)
+
+    def test_version_two_keeps_all_tasks_and_binds_single_variant(self):
+        for variant in ('legacy_centers','continuous_square','continuous_square_shortcuts'):
+            tasks=build_tasks('/Game/SpatialLab/Markers','a'*64,planner_variant=variant)
+            self.assertEqual(tasks['schema_version'],2);self.assertEqual(len(tasks['runs']),12)
+            self.assertEqual({r['planner_variant'] for r in tasks['runs']},{variant})
+            tasks['runs'][0]['planner_variant']='invented'
+            from online_depth_tasks import digest
+            tasks['manifest_sha256']=digest(tasks)
+            with self.assertRaises(ValueError):validate_tasks(tasks)
