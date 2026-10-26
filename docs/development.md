@@ -119,3 +119,11 @@ UE/build 子进程必须使用显式共享锁和超时，Windows Job Object 覆�
 `scripts/render_replay_experiment.py` 需要实际渲染、PythonScriptPlugin 和对应 GPU，使用 `-AllowCommandletRendering -RenderOffscreen`，不能加 NullRHI。首次编译材质可能较慢；查看当前有界任务的 shader/log/PID，不重复启动。局部环境曾在未使用的 SM5 着色器路径出现 Niagara 编译错误，而 D3D12 控制渲染完成；退出码与像素验收必须同时检查，不能只忽略日志。
 
 渲染前先通过内置彩色几何、光轴深度、位姿平移/重复、空视野和曝光控制。若原工程使用旧亮度单位，采集进程明确切为 EV100；不更改磁盘配置。场景已有曝光值是独立依据，光照退化、阴影或裁剪仍需报告，不能为了导航分数调整。复现命令与算法/评测目录边界见 navigation-baseline.md 和 data-contract.md。
+
+## 深度几何离线探针
+
+```powershell
+python ue5/tools/depth_grid_replay.py --input output/render-execution-run1/capture/input --out output/depth-grid-run1
+```
+
+输入只传隔离的 input 目录，输出目录必须不存在。该 CPU 工具保存每帧网格、余量、路径或失败与源文件哈希，不启动 UE/GPU、不读引擎评测目录。默认眼高、相机姿态与格子假设见 data-contract.md；不能把未知脚边区域补成空地，或把局部路径探针当作实际目标导航。
