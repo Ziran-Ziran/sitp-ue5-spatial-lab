@@ -61,6 +61,8 @@ def audit_execution(task,raw,artifacts,attempt,run_index,*,exposure):
                     or math.dist(final,event['feet_cm'])>.01):raise ValueError('motion or arrival after failed observation/policy')
             continue
         request=event['request'];expected_goal=world_goal_to_local(event['feet_cm'],task['goal_cm'],task['heading_deg'])
+        if (request.get('schema_version')!=(2 if 'query_cell_policy' in task else 1)
+                or request.get('query_cell_policy')!=task.get('query_cell_policy')):raise ValueError('changed query index policy/schema')
         if (request!=read(folder/'request.json') or request['attempt_id']!=attempt or request['run_id']!=task['run_id']
                 or request['step_id']!=step or request['t_sim_s']!=timestamp or request['mode']!=task['mode']
                 or Path(request['input_dir']).absolute()!=folder/'input'
@@ -138,7 +140,7 @@ def summarize(rows):
 
 def evaluate(tasks,record,artifacts):
     validate_tasks(tasks)
-    if (record['condition']!=CONDITION or record['evidence_kind']!='ue_game_world_stopped_rgbd_observation_dependent_direct_motion'
+    if (record.get('schema_version')!=tasks['schema_version'] or record['condition']!=CONDITION or record['evidence_kind']!='ue_game_world_stopped_rgbd_observation_dependent_direct_motion'
             or record['executor']!='CharacterMovement_AddMovementInput' or record['position_reference']!='capsule_feet_cm'
             or record['pose_source']!=tasks['pose_source'] or record['map']!=tasks['map']
             or record['manifest_sha256']!=tasks['manifest_sha256'] or record['scope']!=tasks['scope']
@@ -161,7 +163,7 @@ def evaluate(tasks,record,artifacts):
             except (ValueError,KeyError,TypeError,IndexError,OSError) as error:
                 score.update(failure_reason='invalid_execution',validation_error=str(error))
         scores.append(score)
-    return dict(schema_version=1,condition=CONDITION,attempt_id=attempt,manifest_sha256=tasks['manifest_sha256'],
+    return dict(schema_version=tasks['schema_version'],query_cell_policy=tasks.get('query_cell_policy','legacy_floor'),condition=CONDITION,attempt_id=attempt,manifest_sha256=tasks['manifest_sha256'],
         finished=record.get('finished') is True and len(actual)==len(expected),overall=summarize(scores),
         by_mode={mode:summarize([r for r in scores if r['mode']==mode]) for mode in sorted({r['mode'] for r in scores})},runs=scores,
         interpretation='actual stopped sensing and direct depth-route feedback with explicit engine pose supervision; extra receding observations/compute; local geometric tasks, not semantic search or real-time navigation')

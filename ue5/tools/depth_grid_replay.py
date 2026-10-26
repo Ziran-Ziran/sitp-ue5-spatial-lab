@@ -10,16 +10,22 @@ import numpy as np
 from local_depth_grid import GridConfig,depth_grid,number
 from grid_path import astar
 from rendered_input_report import inspect_sequence,file_hash,unlinked
+from query_grid_index import query_cell,TOLERANCE_CELLS
 
 
-def plan_grid(grid,start,goal):
+def plan_grid(grid,start,goal,*,query_cell_policy=None):
     config,states,free=grid['config'],grid['states'],grid['free']
     cells=[config.cell(*point) for point in (start,goal)]
+    raw_cells=cells
+    if query_cell_policy is not None:cells=[query_cell(config,point,query_cell_policy) for point in (start,goal)]
     plan=astar(free,*cells,resolution_m=config.resolution_m)
     for label,cell in zip(('start','goal'),cells):
         if plan['status']==label+'_blocked':
             plan['status']=label+{-1:'_unobserved',0:'_clearance_blocked',1:'_obstacle',2:'_negative_hazard'}[int(states[cell])]
     plan['path_right_forward_m']=[config.center(cell) for cell in plan['cells']]
+    if query_cell_policy is not None:
+        plan['query_indexing']=dict(policy=query_cell_policy,tolerance_cells=TOLERANCE_CELLS if query_cell_policy!='legacy_floor' else 0,
+            raw_cells=[list(c) for c in raw_cells],selected_cells=[list(c) for c in cells])
     return plan
 
 

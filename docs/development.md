@@ -172,3 +172,21 @@ python scripts/compare_visual_marker_runs.py --project $sceneProject --runs outp
 ```
 
 比较器只使用 CPU，重新核对全部实际像素/动作/独立真值、原 job/status 快照、唯一实际生产参数、当前源码闭包和共同 DLL/场景生成器；旧构建或更改后的策略不能直接冒充当前比较。原地图、输入和失败结果不覆盖。预算失败依旧进入分母；离线连续路线长度与实际三维路长分别保存。
+
+## 数值查询索引对照
+
+在线几何任务可显式选择 `--query-cell-policy legacy_floor` 或 `boundary_snap_1e-9_cell`，生成 schema 2；不传参数继续生成原 schema 1。新策略只规范极近内部网格线的查询索引，原坐标仍交给原连续足迹检查，详见 data-contract.md。原始图像/任务/轨迹不回填。
+
+对每个条件设置不同的 `$indexTag`（仅字母数字/下划线），以相同源采集和当前源码运行；第二个条件把 tag 改为 `SnapRun1`、policy 改为 `boundary_snap_1e-9_cell`：
+
+```powershell
+$indexTag = 'FloorRun1'
+$indexPolicy = 'legacy_floor'
+python scripts/online_depth_experiment.py synthetic --engine-root $ueRoot --project $sceneProject --lock $resourceLock --experiment-map "/Game/SpatialLab/Index${indexTag}" --out "output/index-$indexTag-controls" --query-cell-policy $indexPolicy
+python scripts/online_depth_experiment.py prepare --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --out "output/index-$indexTag-prepare" --query-cell-policy $indexPolicy
+python scripts/online_depth_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --tasks "output/index-$indexTag-prepare/tasks.json" --controls "output/index-$indexTag-controls" --out "output/index-$indexTag-execution" --query-cell-policy $indexPolicy
+
+python scripts/compare_online_query_runs.py --project $sceneProject --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --runs output/index-FloorRun1-execution output/index-SnapRun1-execution --controls output/index-FloorRun1-controls output/index-SnapRun1-controls --out output/index-comparison-run1.json
+```
+
+新比较器从原采集重建全部任务，核对当前同 DLL、两套同策略控制、原始生产参数和源码闭包，并重新从实际像素审计完整运动。两条件规范化后必须仅有索引协议差异；不能删除失败位姿或把不同世界目标混成同一任务。每次 run 的锁内输入也冻结其控制 tasks/job/status 快照。

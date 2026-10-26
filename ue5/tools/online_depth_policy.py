@@ -14,6 +14,7 @@ from depth_grid_replay import plan_grid
 from local_depth_grid import GridConfig,multiview_grid,number
 from pitch_sweep_protocol import VIEWS
 from rendered_input_report import file_hash,unlinked
+from query_grid_index import POLICIES
 
 CALIBRATION=dict(w=320,h=240,fx=160,fy=160,cx=159.5,cy=119.5)
 TIME_SOURCE='game_world_simulated_seconds_at_stopped_capture'
@@ -86,7 +87,9 @@ def inspect_observation(directory,t_sim_s):
 
 def decide(request):
     begun=time.perf_counter()
-    if set(request)!=REQUEST_KEYS or request['schema_version']!=1:raise ValueError('strict isolated online request required')
+    version=request.get('schema_version');keys=REQUEST_KEYS|({'query_cell_policy'} if version==2 else set())
+    if (set(request)!=keys or version not in (1,2) or (version==2 and request['query_cell_policy'] not in POLICIES)):
+        raise ValueError('strict versioned isolated online request required')
     try:canonical=str(uuid.UUID(request['attempt_id']))
     except (ValueError,TypeError,AttributeError):raise ValueError('canonical attempt UUID required') from None
     if (canonical!=request['attempt_id'] or not re.fullmatch('[A-Za-z0-9_-]+',request['run_id'])
@@ -96,7 +99,7 @@ def decide(request):
     if not isinstance(goal,list) or len(goal)!=2 or any(abs(number(value))>20 for value in goal):raise ValueError('bounded relative task goal required')
     if number(request['t_sim_s'])<0:raise ValueError('invalid episode simulated time')
     views,hashes=inspect_observation(request['input_dir'],request['t_sim_s']);config=GridConfig()
-    grid=multiview_grid(views,CALIBRATION,config);planning=plan_grid(grid,(0,0),goal)
+    grid=multiview_grid(views,CALIBRATION,config);planning=plan_grid(grid,(0,0),goal,query_cell_policy=request.get('query_cell_policy'))
     gate=(validate_route(grid['states'],config,planning['path_right_forward_m'],start=(0,0),goal=goal,tracking_margin_m=.1)
           if planning['status']=='path_found' else dict(status='planning_'+planning['status'],waypoints_right_forward_m=[]))
     route=gate['waypoints_right_forward_m']
@@ -105,6 +108,7 @@ def decide(request):
     answer.update(schema_version=1,evidence_kind='online_stopped_depth_geometry_action',action='move' if route else 'reject',
         reason=gate['status'],waypoints_right_forward_m=command,planning=planning,continuous_gate=gate,
         input_files_sha256=hashes,config=asdict(config),geometry_and_planning_wall_s=time.perf_counter()-begun)
+    if version==2:answer.update(schema_version=2,query_cell_policy=request['query_cell_policy'])
     if any(file_hash(Path(request['input_dir'])/name)!=sha for name,sha in hashes.items()):raise ValueError('input changed during online decision')
     return answer
 

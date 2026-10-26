@@ -81,3 +81,14 @@ class OnlineDepthPolicyTests(unittest.TestCase):
             with self.subTest(change=change),self.assertRaises(ValueError):decide(dict(self.request,**change))
         (self.root/'nadir/poses.jsonl').write_text('{}')
         with self.assertRaises(ValueError):decide(self.request)
+
+    def test_version_two_binds_index_policy_without_changing_raw_goal(self):
+        goal=[-4.218847493575595e-15,3.0000000000002798]
+        for policy,expected in [('legacy_floor',[20,19]),('boundary_snap_1e-9_cell',[20,20])]:
+            request=dict(self.request,schema_version=2,query_cell_policy=policy,goal_right_forward_m=goal,mode='initial_sweep_once')
+            answer=decide(request)
+            self.assertEqual(answer['schema_version'],2);self.assertEqual(answer['query_cell_policy'],policy)
+            self.assertEqual(answer['planning']['query_indexing']['selected_cells'][1],expected)
+            self.assertEqual(answer['continuous_gate']['waypoints_right_forward_m'][-1],goal)
+        with self.assertRaises(ValueError):decide(dict(self.request,schema_version=2))
+        with self.assertRaises(ValueError):decide(dict(self.request,query_cell_policy='legacy_floor'))
