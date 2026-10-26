@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "project": "sitp",
+  "name": "semantic-navigation-baseline",
+  "status": "design",
+  "runner_implemented": false,
+  "seed": 0,
+  "stage": "semantic_navigation",
+  "observations": [
+    "rgb",
+    "depth"
+  ],
+  "training_only_observations": [],
+  "evaluation_observations": [
+    "rgb",
+    "depth"
+  ],
+  "input_policy": "sensor_only",
+  "split_unit": "scene",
+  "split_ids": {
+    "train": [
+      "synthetic_fixture_train"
+    ],
+    "validation": [
+      "synthetic_fixture_validation"
+    ],
+    "test": [
+      "synthetic_fixture_test"
+    ]
+  },
+  "dataset_bound": false,
+  "metrics": [
+    "success_rate",
+    "path_length_ratio",
+    "collision_rate",
+    "planning_latency_p95_ms"
+  ]
+}

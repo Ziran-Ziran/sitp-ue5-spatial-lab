@@ -1,0 +1,329 @@
+{
+  "schema_version": 1,
+  "source_repository": "https://github.com/Ziran-Ziran/gamescaling-npc-lab",
+  "source_commit": "46e75f16af30d5eb52ec6833a6dff3b3703ddc61",
+  "strategy": "source-only snapshot; no Git history, ignored files, assets or data copied",
+  "files": [
+    {
+      "path": ".editorconfig",
+      "source_path": ".editorconfig",
+      "source_sha256": "c5fb749272d8733f90f2357b4c50cc1edb12558bfc7d1c705d9b7553da6bca82"
+    },
+    {
+      "path": ".gitattributes",
+      "source_path": ".gitattributes",
+      "source_sha256": "13e159fdb80720512f57c5fa62ac3969fec5971c6a07c0f110b5e35b9b6c511e"
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "source_path": ".github/CODEOWNERS",
+      "source_sha256": "fa938754ac65210f81183817e2e86f79871dad286bc1d1966814dc55fbdfdd8d"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_path": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "source_sha256": "3fca65cc7130a890df413b199642161e22fa68d796e3c32661af62b083e395f3"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_path": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "source_sha256": "5a7519274d26f9d1d62ec31289c0341043f0db2435231da3c0049d7aa37f68c9"
+    },
+    {
+      "path": ".github/dependabot.yml",
+      "source_path": ".github/dependabot.yml",
+      "source_sha256": "40cb84ed548342abdf6c9bcf0395f299eac338f215832b3e4e2965d812f96cc8"
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "source_path": ".github/pull_request_template.md",
+      "source_sha256": "a165dc40c801fddf17c7d1af508d8464b2f71e4793b402b425a0a9169ab328d0"
+    },
+    {
+      "path": "SECURITY.md",
+      "source_path": "SECURITY.md",
+      "source_sha256": "e0cbbd3914aebb8dc3841d39e704ee40b1eb904d4d264258f6d41919151b1c95"
+    },
+    {
+      "path": "requirements/slam.txt",
+      "source_path": "requirements/slam.txt",
+      "source_sha256": "ddf3f0da1f45d603e1bab41b8ffb7ae5c1036332e7228b4f4bab75302bd84cde"
+    },
+    {
+      "path": "ue5/GSVSLAM/Config/DefaultEngine.ini",
+      "source_path": "ue5/GSVSLAM/Config/DefaultEngine.ini",
+      "source_sha256": "c9b722bf62ddef2c682d31d5480d08c874b4672c200dd77814ac73205c500a7b"
+    },
+    {
+      "path": "ue5/GSVSLAM/Config/DefaultGame.ini",
+      "source_path": "ue5/GSVSLAM/Config/DefaultGame.ini",
+      "source_sha256": "314266f15280819679aec263bf4a310cee83cee3809e24c0a60cf3880970271d"
+    },
+    {
+      "path": "ue5/GSVSLAM/Config/DefaultInput.ini",
+      "source_path": "ue5/GSVSLAM/Config/DefaultInput.ini",
+      "source_sha256": "109607edf6dfef58ccfbd873e3d8c5ab38ca829686cc9016363469dea4a08a76"
+    },
+    {
+      "path": "ue5/GSVSLAM/GSVSLAM.uproject",
+      "source_path": "ue5/GSVSLAM/GSVSLAM.uproject",
+      "source_sha256": "cb928db5f10585a2220f1c50eb1d4e6cb7ec08300799951e6268a043180de4b7"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM.Target.cs",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM.Target.cs",
+      "source_sha256": "2d770fcf5ed61bb948133a8903545fa8d263175ac8d6b4dfc67079a641cb9ae1"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/GSVSLAM.Build.cs",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/GSVSLAM.Build.cs",
+      "source_sha256": "d9b5b7243e2f9ac3086d0bb30dfcdeedf7cb711f403494ea4ef6c90fa6376b4a"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/GSVSLAM.cpp",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/GSVSLAM.cpp",
+      "source_sha256": "bcd1b12c80552da61f76b71a56b825edc2d7af40dced3d8fe762d296bcfb5bf0"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/GSVSLAM.h",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/GSVSLAM.h",
+      "source_sha256": "6e0787c3f3479e7641fb6ae7dff74570a8951d2ed7c341a54a468a0fa2fb8f12"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/RouteDriverComponent.cpp",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/RouteDriverComponent.cpp",
+      "source_sha256": "9bf4850bbe57512402a7dabbec73f287d7d98d7fd80dbbdfcda7ce9ffbd6b07a"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/RouteDriverComponent.h",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/RouteDriverComponent.h",
+      "source_sha256": "51b0688e8413013b4218bafd7ff9e7a1ada55307c034634749a0265e3a7e9675"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/VisionProbes.cpp",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/VisionProbes.cpp",
+      "source_sha256": "4aaab4f6f24e6df4719fb15111f5e409f16a27cae7ce3bd635b6c3f9ba35851b"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/VisionProbes.h",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/VisionProbes.h",
+      "source_sha256": "3ca881926848fde73087153aca6922b7ddeb55c47e1e2bb6e3e3c465e6a5c06a"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/VisionRecorderComponent.cpp",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/VisionRecorderComponent.cpp",
+      "source_sha256": "48df59d830e5f901218595e10c59ff6639ab1c0fd73b91198e3084426a60c573"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/VisionRecorderComponent.h",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/VisionRecorderComponent.h",
+      "source_sha256": "3ee56c9a4e35f424b841f213da2ebc0929f9a930c4cb567da390c7a9bd8c479e"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/VisionRecorderSubsystem.cpp",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/VisionRecorderSubsystem.cpp",
+      "source_sha256": "dac6faa78ed814065746e319e596acf1beefd6af4ccedfba478114091b0cac98"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/VisionRecorderSubsystem.h",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/VisionRecorderSubsystem.h",
+      "source_sha256": "afd0dbd580aca67491773fcfaa9b4db9661300e5b449bc47e0767ed6093f9b74"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/VisionScene.cpp",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/VisionScene.cpp",
+      "source_sha256": "134cc3135c4bd99d6a83a8053292872144010b84f694c96710318488951adf13"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAM/VisionScene.h",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAM/VisionScene.h",
+      "source_sha256": "3bb8351aae5777da90c7838ac755001ede15933c41e43245ca2683068b183f95"
+    },
+    {
+      "path": "ue5/GSVSLAM/Source/GSVSLAMEditor.Target.cs",
+      "source_path": "ue5/GSVSLAM/Source/GSVSLAMEditor.Target.cs",
+      "source_sha256": "125077bf75dbdc8935adc91b68e82d0662998a2de219f513b4084987137adc91"
+    },
+    {
+      "path": "ue5/tools/background_job.py",
+      "source_path": "ue5/tools/background_job.py",
+      "source_sha256": "fee46c20ef26bd9ef2756f3a5448f7c52e721d77e290fc18728754b91ebae2a8"
+    },
+    {
+      "path": "ue5/tools/check_depth.py",
+      "source_path": "ue5/tools/check_depth.py",
+      "source_sha256": "e2a3c4457142153511894e650493cbd8c739f27b7e7f856e472b0f2956310199"
+    },
+    {
+      "path": "ue5/tools/check_depth_floor.py",
+      "source_path": "ue5/tools/check_depth_floor.py",
+      "source_sha256": "936111b79c7d58525003295419f5d27b0a0c4831932b24c77a6848dc22be58b4"
+    },
+    {
+      "path": "ue5/tools/check_depth_points.py",
+      "source_path": "ue5/tools/check_depth_points.py",
+      "source_sha256": "bf50a32cec461d1d50ff2d3ad3349648a47152129a4b65c23ed9ed47e40c0608"
+    },
+    {
+      "path": "ue5/tools/check_loop_pairs.py",
+      "source_path": "ue5/tools/check_loop_pairs.py",
+      "source_sha256": "be5f02aab7a2dbf32f98d283fb348860301b27185d7c48e15ae063ec150ef479"
+    },
+    {
+      "path": "ue5/tools/colmap_depth_poses.py",
+      "source_path": "ue5/tools/colmap_depth_poses.py",
+      "source_sha256": "76c826af87658d0433af61ae0e8dbbf2e2fa5c0d97f0f8254ec829ab4eabdb76"
+    },
+    {
+      "path": "ue5/tools/dense_map.py",
+      "source_path": "ue5/tools/dense_map.py",
+      "source_sha256": "e01e5aac1eab20ac4d3f950fb95e5bb81037117a6f32afd3ace4a31c4e0501d5"
+    },
+    {
+      "path": "ue5/tools/diagnose_reconstruction.py",
+      "source_path": "ue5/tools/diagnose_reconstruction.py",
+      "source_sha256": "8b285c45177916cfe20b9c7bdaf9fc373879bd2d13e511129c926401f1619d3f"
+    },
+    {
+      "path": "ue5/tools/draw_projection.py",
+      "source_path": "ue5/tools/draw_projection.py",
+      "source_sha256": "154fbd388a86f9bb366800ee270ccbd7e486dc3c4892b99586ae79db9096b301"
+    },
+    {
+      "path": "ue5/tools/evaluate_landmarks.py",
+      "source_path": "ue5/tools/evaluate_landmarks.py",
+      "source_sha256": "864906d098c676c75da982b685aa8249726aa25082113a6c56d0fb6862fda3dd"
+    },
+    {
+      "path": "ue5/tools/evaluate_map.py",
+      "source_path": "ue5/tools/evaluate_map.py",
+      "source_sha256": "a165af62251a9eea167bcf0e3b2311c282c1e70680b61f439d25639b34418bfd"
+    },
+    {
+      "path": "ue5/tools/evaluate_slam.py",
+      "source_path": "ue5/tools/evaluate_slam.py",
+      "source_sha256": "68e27e1ff7e80c44f302493271f9470243069a63cc3764757b68ef69f4c46719"
+    },
+    {
+      "path": "ue5/tools/filter_match_graph.py",
+      "source_path": "ue5/tools/filter_match_graph.py",
+      "source_sha256": "625faaaf234650dfe73d2d241385d92efa19b556191ffd73ad38277c9d6e124f"
+    },
+    {
+      "path": "ue5/tools/inspect_slam_input.py",
+      "source_path": "ue5/tools/inspect_slam_input.py",
+      "source_sha256": "c7b6cbce45718ec0bf859688b9033ccdd0e4187d8164384613313785c81c5421"
+    },
+    {
+      "path": "ue5/tools/orbslam3/CMakeLists.txt",
+      "source_path": "ue5/tools/orbslam3/CMakeLists.txt",
+      "source_sha256": "bd7c509809ec7d90ce10bdf0e900187f2bf9d230387970571d0f4753f47d8ff7"
+    },
+    {
+      "path": "ue5/tools/orbslam3/diagnostics.cpp",
+      "source_path": "ue5/tools/orbslam3/diagnostics.cpp",
+      "source_sha256": "b0df9c772654458361d3e244dbcb7cd54a884d5fa5fc88e1114eb6fe8c677711"
+    },
+    {
+      "path": "ue5/tools/orbslam3/diagnostics.h",
+      "source_path": "ue5/tools/orbslam3/diagnostics.h",
+      "source_sha256": "4728e7920debc5616212dfaa7d31967f96c6c643a28a596e57d01d7270249338"
+    },
+    {
+      "path": "ue5/tools/orbslam3/preserve.sh",
+      "source_path": "ue5/tools/orbslam3/preserve.sh",
+      "source_sha256": "8e3bc0d6caadd6376e30bbb40fac286497842837c99a9ca1464b738777f77008"
+    },
+    {
+      "path": "ue5/tools/orbslam3/runner.cpp",
+      "source_path": "ue5/tools/orbslam3/runner.cpp",
+      "source_sha256": "888e528cd5efa5beb7e84e04b021b81f279ba21fff5991c2216d8ce324093701"
+    },
+    {
+      "path": "ue5/tools/orbslam3_diagnostics.py",
+      "source_path": "ue5/tools/orbslam3_diagnostics.py",
+      "source_sha256": "de52e69525fc1d98c66f33848c662a6c5231469f4a87301b7a0bbfb3cec81caa"
+    },
+    {
+      "path": "ue5/tools/orbslam3_input.py",
+      "source_path": "ue5/tools/orbslam3_input.py",
+      "source_sha256": "1f7aaf80136f12245e6765d12359aa9adcc693a2ab16cc32490476a666448a27"
+    },
+    {
+      "path": "ue5/tools/orbslam3_report.py",
+      "source_path": "ue5/tools/orbslam3_report.py",
+      "source_sha256": "3e4842c385855fc2d566124f62bbf313a918a7658276011383d15333d73bf955"
+    },
+    {
+      "path": "ue5/tools/probe_bridge_triangulation.py",
+      "source_path": "ue5/tools/probe_bridge_triangulation.py",
+      "source_sha256": "a0ddd1c4e558b0cfee00483bcd401def5fd7f1a06712011ad9bfed7e3081927f"
+    },
+    {
+      "path": "ue5/tools/probe_depth_pairs.py",
+      "source_path": "ue5/tools/probe_depth_pairs.py",
+      "source_sha256": "a9bbdd19f265398808ce97650d3dc998fafc2ec83b96df1b1c9fec73342210c3"
+    },
+    {
+      "path": "ue5/tools/probe_pair_geometry.py",
+      "source_path": "ue5/tools/probe_pair_geometry.py",
+      "source_sha256": "6744d518dc2dabdf212db07b8ead25b0b256d7c57bbc44aeaaaf803a22558fd4"
+    },
+    {
+      "path": "ue5/tools/rgbd_vo.py",
+      "source_path": "ue5/tools/rgbd_vo.py",
+      "source_sha256": "e05ca42434a4c6103ddc6ba61bb2e9fcc18d2117aef3aa07c286e839199f61b2"
+    },
+    {
+      "path": "ue5/tools/run_colmap.py",
+      "source_path": "ue5/tools/run_colmap.py",
+      "source_sha256": "993c76bf909ffc47864da9ed56d0f508fafa46e5f4f3a8a405f94a99cc257276"
+    },
+    {
+      "path": "ue5/tools/run_initialization_probe.py",
+      "source_path": "ue5/tools/run_initialization_probe.py",
+      "source_sha256": "c9af7cdd8090453904f459608db87ab4e2fa9f29af8b582c61c6e3078e64dfe7"
+    },
+    {
+      "path": "ue5/tools/run_mapper.py",
+      "source_path": "ue5/tools/run_mapper.py",
+      "source_sha256": "30a1fcfc3c8e1d3b0f35710e5c844a6c438db846f773a1a2c8319b056eb152ff"
+    },
+    {
+      "path": "ue5/tools/summarize.py",
+      "source_path": "ue5/tools/summarize.py",
+      "source_sha256": "702fdee35712241434484555448f7f0af4e7c529a53372d484ac7dda39e935b1"
+    },
+    {
+      "path": "ue5/tools/test_capture_calibration.py",
+      "source_path": "ue5/tools/test_capture_calibration.py",
+      "source_sha256": "1854045774d61d311b047538fedcbc787854e5b1c0d355892414d98082f2fe98"
+    },
+    {
+      "path": "ue5/tools/test_colmap_depth_poses.py",
+      "source_path": "ue5/tools/test_colmap_depth_poses.py",
+      "source_sha256": "aad7384313ed157ba43009baa8e3f6ba5a25e45deff46a8c08e685e5b0081fc8"
+    },
+    {
+      "path": "ue5/tools/test_inspect_slam_input.py",
+      "source_path": "ue5/tools/test_inspect_slam_input.py",
+      "source_sha256": "d47cfa8e4e8a2b401409f4841a5b65a8d028cfeca4b358afcf61b5f3f8aa35a1"
+    },
+    {
+      "path": "ue5/tools/test_orbslam3.py",
+      "source_path": "ue5/tools/test_orbslam3.py",
+      "source_sha256": "79e55884265ea22ae0db45932ffebfc70b26acc4137dc66180148e76fb099418"
+    },
+    {
+      "path": "ue5/tools/test_orbslam3_diagnostics.py",
+      "source_path": "ue5/tools/test_orbslam3_diagnostics.py",
+      "source_sha256": "9d8333c9043397bbf8a34b24a3418cb9a71edb069aebe8f530eb9dd0c2c2233d"
+    },
+    {
+      "path": "ue5/tools/validate_session.py",
+      "source_path": "ue5/tools/validate_session.py",
+      "source_sha256": "b8fad6cd7ea11f690f1e40a827d041bb52dc925d0f11bb63040838bb24c11f4a"
+    }
+  ],
+  "adapted_files": []
+}

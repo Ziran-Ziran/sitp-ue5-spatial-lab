@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "project": "sitp",
+  "allowed_files": [
+    ".gitignore",
+    ".gitattributes",
+    ".editorconfig",
+    "README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "NOTICE.md",
+    "AGENTS.md",
+    "repository-policy.json",
+    "docs/README.md",
+    "docs/architecture.md",
+    "docs/development.md",
+    "docs/roadmap.md",
+    "docs/repository-policy.md",
+    "docs/migration.md",
+    "docs/shared-engineering.md",
+    "docs/data-contract.md",
+    "docs/research-plan.md",
+    "ue5/GSVSLAM/GSVSLAM.uproject",
+    "ue5/GSVSLAM/Config/DefaultEngine.ini",
+    "ue5/GSVSLAM/Config/DefaultGame.ini",
+    "ue5/GSVSLAM/Config/DefaultInput.ini",
+    ".github/CODEOWNERS"
+  ],
+  "allowed_trees": [
+    ".github/",
+    "scripts/",
+    "tests/",
+    "requirements/",
+    "experiments/",
+    "engineering/",
+    "ue5/tools/",
+    "ue5/GSVSLAM/Source/"
+  ]
+}
