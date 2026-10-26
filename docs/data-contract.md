@@ -186,3 +186,5 @@ scope `frozen_city_marker_source_pose_tasks` 将全部原始源位姿分别配�
 - 审计要求原 fixture 完整本地导入闭包、当前 DLL、全部像素/标定、模型源码、地图/任务、fixture/controls 快照均出现在原锁内输入证明中；原生 Game 参数唯一绑定60Hz固定步长。重新构造全部计划并审计所有轨迹、失败和独立参考，不回填原 job/status。
 
 `posthoc_synthetic_floor_endpoint_contract_diagnostics` 是观察结果后的探索性评测。它先复核全部原 producer/轨迹，再用实际已验证的构造地面方程计算水平前向一米处目标；复用原10cm水平/20cm垂直容差。报告并列原合同成绩、原失败/接触、测量标志与端点接近度，未测量的 proximity 为null；绝不覆盖原成功或将接近度称为导航成功。真值来自构造而非模型拟合，不能输入推理，也不能将事后分析当预先冻结的确认性实验。
+
+`audited_city_initial_visual_repeatability_analysis` 先核验两套完整视距运行、各自控制与相同规范任务集，再按初始六PNG哈希、类别、扫描计数、schema、规划器和视距分组。身份、源时间及CPU计时不参与响应一致性；保留所有其他决策字段。缺少或不完整初始观察单列，不从完整分母删除。报告同条件输入冲突和两条件的共有输入组；这些是相关输入数，不是独立样本数、运动可重复性或显著性检验，不替代原导航评分。

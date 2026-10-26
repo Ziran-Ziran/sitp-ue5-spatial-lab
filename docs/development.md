@@ -289,3 +289,13 @@ python scripts/support_physics_goal_diagnostics.py --project $sceneProject --con
 ```
 
 这里的查询是水平前向一米处的构造地面，而非沿坡面弧长一米；端点接近度不能替代原生执行合同成功率。构造真值只进入此评测模块，不进入像素策略。
+
+## 初始视觉输入的重复与一致性
+
+对完整城市视距对照先重跑原严格审计，再按六幅PNG与固定类别/扫描计数/规划器/视距条件分组。缺少初始观察的任务仍保留，响应只忽略身份、时间和CPU计时元数据，其他动作字段冲突须显式报告：
+
+```powershell
+python scripts/marker_repeatability_report.py --project $sceneProject --scene output/horizon-city-scene-run1 --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --runs output/horizon-ThreeRun1-city output/horizon-OneRun1-city --controls output/horizon-ThreeRun1-controls output/horizon-OneRun1-controls --out output/marker-repeatability-run1.json
+```
+
+该分析只用CPU，完整任务/成功失败与原始分母不变。重复像素不是独立试验，首个同输入动作一致也不能证明后续运动确定性或泛化。
