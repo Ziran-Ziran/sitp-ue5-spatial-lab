@@ -1,4 +1,5 @@
 #include "SpatialLabRuntime.h"
+#include "SpatialLabVisibility.h"
 #include "AIController.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
@@ -70,6 +71,19 @@ void ASpatialLabEpisodeRunner::BeginPlay()
         return;
     }
     Runs = *InputRuns;
+    AttemptId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens).ToLower();
+    FString ObservationPath;
+    if (FParse::Value(FCommandLine::Get(),TEXT("SITPObservations="),ObservationPath))
+    {
+        Visibility = MakeShared<FSpatialLabVisibilityRecorder>();
+        if (!Visibility->Open(GetWorld(),ObservationPath,Plan->GetStringField(TEXT("manifest_sha256")),AttemptId))
+        {
+            Done = true;
+            UE_LOG(LogTemp,Error,TEXT("SITP_OBSERVATION_OPEN_FAILED"));
+            FPlatformMisc::RequestExitWithStatus(false,3);
+            return;
+        }
+    }
     NextStartSim = GetWorld()->GetTimeSeconds() + 1;
     Save(false);
 }
@@ -86,17 +100,20 @@ void ASpatialLabEpisodeRunner::BeginNext()
     if (Index >= Runs.Num())
     {
         Done = true;
-        Save(true);
+        const bool Complete = !Visibility || Visibility->Finish();
+        Save(Complete);
         UE_LOG(LogTemp, Display, TEXT("SITP_RUNTIME_COMPLETE episodes=%d"), Results.Num());
-        FPlatformMisc::RequestExitWithStatus(false, 0);
+        FPlatformMisc::RequestExitWithStatus(false, Complete ? 0 : 3);
         return;
     }
     Current = Runs[Index]->AsObject();
     const TSharedPtr<FJsonObject> Task = Current->GetObjectField(TEXT("task"));
     const TSharedPtr<FJsonObject> Decision = Current->GetObjectField(TEXT("decision"));
     Previous = ReadVector(Task->GetArrayField(TEXT("start_cm")));
+    InitialFeet = Previous;
     StartedWall = FPlatformTime::Seconds();
     StartedSim = GetWorld()->GetTimeSeconds();
+    if (Visibility) Visibility->BeginEpisode(Current->GetStringField(TEXT("run_id")),StartedSim);
     Trajectory.Empty();
     Trajectory.Add(JsonVector(Previous));
     CollisionEvents = 0;
@@ -145,6 +162,8 @@ void ASpatialLabEpisodeRunner::BeginNext()
     Controller = GetWorld()->SpawnActor<AAIController>();
     if (!Controller) { FinishRun(TEXT("controller_spawn_failed")); return; }
     Controller->Possess(Agent);
+    InitialFeet = Feet();
+    if (Visibility) Visibility->Sample(Agent,Feet(),true);
     Controller->GetPathFollowingComponent()->OnRequestFinished.AddUObject(this, &ASpatialLabEpisodeRunner::OnMoveFinished);
     FString Executor;
     Decision->TryGetStringField(TEXT("executor"), Executor);
@@ -161,6 +180,14 @@ void ASpatialLabEpisodeRunner::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
     if (Done) return;
+    if (Visibility && !Visibility->IsHealthy())
+    {
+        if (Active) FinishRun(TEXT("observation_io_failure"));
+        Done = true;
+        Save(false);
+        FPlatformMisc::RequestExitWithStatus(false,3);
+        return;
+    }
     if (!Active)
     {
         if (GetWorld()->GetTimeSeconds() >= NextStartSim) BeginNext();
@@ -170,6 +197,7 @@ void ASpatialLabEpisodeRunner::Tick(float DeltaSeconds)
     WalkedCm += FVector::Distance(Previous, CurrentFeet);
     Previous = CurrentFeet;
     Trajectory.Add(JsonVector(CurrentFeet));
+    if (Visibility) Visibility->Sample(Agent,CurrentFeet);
     const double Elapsed = GetWorld()->GetTimeSeconds() - StartedSim;
     if (!Agent || CurrentFeet.ContainsNaN()) FinishRun(TEXT("agent_lost"));
     else if (WalkedCm > MaxPath) FinishRun(TEXT("path_budget"));
@@ -210,6 +238,11 @@ void ASpatialLabEpisodeRunner::OnImpact(AActor* Self, AActor* Other, FVector Imp
 
 void ASpatialLabEpisodeRunner::FinishRun(const FString& Status)
 {
+    if (Visibility)
+    {
+        if (Agent) Visibility->Sample(Agent,Feet(),true);
+        Visibility->EndEpisode(Status);
+    }
     const bool HadAgent = Agent != nullptr;
     TSharedRef<FJsonObject> Execution = MakeShared<FJsonObject>();
     Execution->SetStringField(TEXT("status"), Status);
@@ -219,6 +252,7 @@ void ASpatialLabEpisodeRunner::FinishRun(const FString& Status)
         Execution->SetStringField(TEXT("entity_id"), Entity);
     else Execution->SetField(TEXT("entity_id"), MakeShared<FJsonValueNull>());
     Execution->SetField(TEXT("final_position_cm"), JsonVector(Feet()));
+    Execution->SetField(TEXT("initial_position_cm"), JsonVector(InitialFeet));
     Execution->SetArrayField(TEXT("trajectory_cm"), Trajectory);
     Execution->SetNumberField(TEXT("continuous_path_length_cm"), WalkedCm);
     Execution->SetNumberField(TEXT("wall_s"), FPlatformTime::Seconds() - StartedWall);
@@ -252,6 +286,7 @@ void ASpatialLabEpisodeRunner::Save(bool Finished)
     Report->SetStringField(TEXT("clock"), TEXT("engine_simulated_seconds_and_process_wall_seconds"));
     Report->SetStringField(TEXT("collision_definition"), TEXT("blocking non-floor impact events, 0.1 sim-s debounce"));
     Report->SetStringField(TEXT("manifest_sha256"), Plan->GetStringField(TEXT("manifest_sha256")));
+    Report->SetStringField(TEXT("attempt_id"), AttemptId);
     Report->SetStringField(TEXT("map"), GetWorld()->GetOutermost()->GetName());
     Report->SetBoolField(TEXT("finished"), Finished);
     Report->SetNumberField(TEXT("expected_runs"), Runs.Num());

@@ -24,3 +24,15 @@ experiments 用按 scene 的 train/validation/test 互斥标识；不能从同�
 - 成功要求执行到达且脚底终点距所选、类别正确的标注 Actor 原点不超过 300 cm。评分从独立实体表核对类别/位置和实际终点，不信任单独的 success 标志；不衡量视觉分类准确率、物体接触或真实可交互性。所有固定回合进入成功率分母，缺失执行也是失败。
 
 完整 `finished` 与回合数检查通过才算运行结束；UE 进程退出码 0 不能代替产物验收。合成 UE 控制案例、静态场景回合、离线合成单元测试分别标注，原始报告不改写。
+
+## 局部引擎可见性监督与选择回放（schema_version 1）
+
+`--record-observations` 在 Game world 启用 `observations.jsonl`。条件必须为 `engine_local_visibility_supervision`，语义来源 `engine_actor_label`，位姿来源 `engine_ground_truth`，路线来源 `global_engine_oracle_selected_routes`。这是碰撞几何监督，没有渲染图像、像素分类或检测置信度；观察与到达判据也不等价。
+
+- 首行为 stream：完整地图、冻结清单哈希、同次原生执行生成的 UUID `attempt_id`、厘米坐标系和传感器参数。执行 JSON 使用同一 attempt；关联检查还核对有帧回合的起终脚底位置（5 cm 内）、初始模拟时刻 0 与末帧/执行时长（误差 1e-4 秒内）。`initial_position_cm` 记录生成后自动贴地的实际脚底，独立于任务计划起点和轨迹第一个计划点。不同尝试不能混用。旧的无 attempt 流不由此合同接受，原始文件不改写。
+- 固定全景范围 2000 cm，按眼点到 Actor 原点距离筛选，眼点在脚底上方 150 cm。每 0.1 模拟秒采样，另强制首末帧；同一模拟时刻不重复采样。向 Actor 包围盒中心及上下半个 Z extent 共三个点发复杂碰撞射线；首个阻挡命中必须是该 Actor。射线落入空隙不算检测，因此细杆、空心或碰撞不完整的物体可能漏报。它不是相机视锥、像素覆盖或真实可见性真值。
+- episode_start/end 包含 run_id；未生成代理的失败也保留边界和零帧。frame 包含连续 frame_id、回合内 `t_sim_s`、从记录器启动起单调的 `t_monotonic_s`、脚底和眼点、当帧 entities。模拟时间每回合重置；wall 时钟不重置，也不等于实时采样频率。
+- 每个 entity 仅有 entity_id、chair/lamp 类别、引擎原点 position_cm 和命中样本数 1..3。流中没有全 catalog、真值目标、未来帧或未观察实体。严格字段白名单拒绝额外特权字段；读取器逐条消费，核验连续帧号、时钟、范围、回合和最终计数/footer。
+- 策略的 goal-only JSON 仅提供地图、清单哈希、run_id 和目标类别；清单导出与回放是分开的命令，回放不接收原始任务 catalog、起点或坐标。goal-only 可跨同一冻结任务的多次 attempt 复用；回放报告保留当前 attempt。
+- `frame_only` 只保留当前观测；`temporal_memory` 默认 TTL 5 模拟秒，可预先显式指定 0..120 秒，边界包含到期时刻。每回合独立清空；按当前脚底至已观察实体原点的距离选择，平局按 ID。所有位置和类别均是明确的引擎监督，没有从未来补写历史记忆。
+- 报告目标可用帧比例、首次目标观测、选择变化、策略 CPU wall 耗时和失败原因；没有观测的回合仍在回合分母中。路线受全局 oracle 偏置，回放只衡量选择/记忆可用性，不能将其转写成反事实导航成功率、路长收益或视觉语义准确率。
