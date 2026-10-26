@@ -6,6 +6,7 @@ import math
 import re
 from local_depth_grid import number
 from semantic_memory import position
+from query_grid_index import POLICIES
 
 CONDITION='online_stopped_depth_geometry_pose_supervision'
 MODES=('initial_sweep_once','receding_sweep')
@@ -20,7 +21,15 @@ def digest(tasks):
         sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
 
 
-def build_tasks(map_path,map_sha256,frames,*,exposure,source_binding):
+def with_index_policy(tasks,policy):
+    if policy is not None:
+        if policy not in POLICIES:raise ValueError('explicit frozen query index policy required')
+        tasks.update(schema_version=2,query_cell_policy=policy)
+        tasks['runs']=[dict(run,query_cell_policy=policy) for run in tasks['runs']]
+    tasks['manifest_sha256']=digest(tasks);return validate_tasks(tasks)
+
+
+def build_tasks(map_path,map_sha256,frames,*,exposure,source_binding,query_cell_policy=None):
     runs=[]
     for frame in frames:
         heading=math.radians(number(frame['heading_deg']));start=position(frame['start_cm'])
@@ -34,13 +43,17 @@ def build_tasks(map_path,map_sha256,frames,*,exposure,source_binding):
         geometry_source='current_stopped_rgbd_depth_only',pose_source='engine_ground_truth_reset_relative_goal_and_actuation',
         map=map_path,map_sha256=map_sha256,fixed_exposure_ev100=exposure,settings=copy.deepcopy(SETTINGS),
         source_binding=copy.deepcopy(source_binding),frame_bindings=copy.deepcopy(frames),runs=runs)
-    tasks['manifest_sha256']=digest(tasks);return validate_tasks(tasks)
+    return with_index_policy(tasks,query_cell_policy)
 
 
 def validate_tasks(tasks):
     keys={'schema_version','condition','scope','geometry_source','pose_source','map','map_sha256','fixed_exposure_ev100',
         'settings','source_binding','frame_bindings','runs','manifest_sha256'}
-    if (set(tasks)!=keys or tasks['schema_version']!=1 or tasks['condition']!=CONDITION
+    version=tasks.get('schema_version');policy=tasks.get('query_cell_policy')
+    if version==2:
+        keys.add('query_cell_policy')
+        if policy not in POLICIES:raise ValueError('version-two query index policy required')
+    if (set(tasks)!=keys or version not in (1,2) or tasks['condition']!=CONDITION
             or tasks['geometry_source']!='current_stopped_rgbd_depth_only'
             or tasks['pose_source']!='engine_ground_truth_reset_relative_goal_and_actuation'
             or not re.fullmatch(r'/Game/SpatialLab/[A-Za-z][A-Za-z0-9_]*',tasks['map'])
@@ -49,7 +62,8 @@ def validate_tasks(tasks):
             or not 1<=len(tasks['runs'])<=200):raise ValueError('invalid frozen online tasks')
     seen=set()
     for row in tasks['runs']:
-        if (set(row)!={'run_id','mode','source_sequence','source_frame_id','start_cm','heading_deg','goal_cm','intervention'}
+        row_keys={'run_id','mode','source_sequence','source_frame_id','start_cm','heading_deg','goal_cm','intervention'}|({'query_cell_policy'} if version==2 else set())
+        if (set(row)!=row_keys or row.get('query_cell_policy')!=policy
                 or not re.fullmatch('[A-Za-z0-9_-]+',row['run_id']) or row['run_id'] in seen
                 or row['mode'] not in MODES or row['intervention'] not in ('none','wall_after_50cm')):
             raise ValueError('invalid/duplicate online run')
@@ -70,7 +84,7 @@ def validate_tasks(tasks):
     return tasks
 
 
-def build_controls(map_path,map_sha256):
+def build_controls(map_path,map_sha256,*,query_cell_policy=None):
     rows=[]
     for name,start,goal,intervention in (
             ('floor',[0,0,0],[300,0,0],'none'),
@@ -84,4 +98,4 @@ def build_controls(map_path,map_sha256):
         geometry_source='current_stopped_rgbd_depth_only',pose_source='engine_ground_truth_reset_relative_goal_and_actuation',
         map=map_path,map_sha256=map_sha256,fixed_exposure_ev100=1,settings=copy.deepcopy(SETTINGS),
         source_binding={'kind':'owned_primitive_online_controls'},frame_bindings=[],runs=rows)
-    tasks['manifest_sha256']=digest(tasks);return validate_tasks(tasks)
+    return with_index_policy(tasks,query_cell_policy)

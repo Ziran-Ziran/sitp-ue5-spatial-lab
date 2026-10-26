@@ -22,3 +22,13 @@ class OnlineDepthTasksTests(unittest.TestCase):
     def test_no_catalog_or_engine_geometry_is_added_to_a_task(self):
         tasks=build_tasks('/Game/SpatialLab/City','a'*64,self.frames,exposure=13,source_binding={'capture_sha256':'b'*64})
         self.assertNotIn('entities',str(tasks));self.assertEqual(tasks['geometry_source'],'current_stopped_rgbd_depth_only')
+
+    def test_versioned_query_policy_keeps_all_frames_and_binds_every_run(self):
+        for policy in ('legacy_floor','boundary_snap_1e-9_cell'):
+            tasks=build_tasks('/Game/SpatialLab/City','a'*64,self.frames,exposure=13,source_binding={},query_cell_policy=policy)
+            self.assertEqual(tasks['schema_version'],2);self.assertEqual(len(tasks['runs']),8)
+            self.assertEqual({r['query_cell_policy'] for r in tasks['runs']},{policy})
+            tasks['runs'][0]['query_cell_policy']='invented'
+            from online_depth_tasks import digest
+            tasks['manifest_sha256']=digest(tasks)
+            with self.assertRaises(ValueError):validate_tasks(tasks)

@@ -18,6 +18,7 @@ from depth_execution_source import capture_job_binding
 from pitch_sweep_capture_report import inspect_sweep_capture
 from online_depth_tasks import build_tasks,build_controls,validate_tasks
 from online_depth_report import evaluate
+from query_grid_index import POLICIES
 
 
 def policy_sources(entry='online_depth_policy'):
@@ -38,7 +39,7 @@ def policy_sources(entry='online_depth_policy'):
     return sorted(found)
 
 
-def prepare(capture,capture_job,project):
+def prepare(capture,capture_job,project,*,query_cell_policy=None):
     binding=capture_job_binding(capture,capture_job,project=project)
     inspect_sweep_capture(capture)
     sweep=read(capture/'evaluation/sweep-plan.json');base=sweep['base_plan'];frames=[]
@@ -51,7 +52,7 @@ def prepare(capture,capture_job,project):
     binding.update(capture_index_sha256=file_hash(capture/'capture-index.json'),sweep_sha256=sweep['sweep_sha256'],
         camera_poses_sha256=file_hash(capture/'evaluation/camera_poses.jsonl'))
     return build_tasks(base['map'],base['source_provenance']['map_sha256'],frames,
-        exposure=base['render_settings']['fixed_exposure_ev100'],source_binding=binding)
+        exposure=base['render_settings']['fixed_exposure_ev100'],source_binding=binding,query_cell_policy=query_cell_policy)
 
 
 def control_acceptance(report,record):
@@ -121,6 +122,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('action',choices=('prepare','synthetic','run'))
     for name in ('engine-root','project','lock','out'):parser.add_argument('--'+name,type=Path,required=True)
     for name in ('capture','capture-job','tasks','controls'):parser.add_argument('--'+name,type=Path)
+    parser.add_argument('--query-cell-policy',choices=POLICIES)
     parser.add_argument('--experiment-map');parser.add_argument('--start-before');parser.add_argument('--finish-before');args=parser.parse_args()
     project=args.project.absolute();unlinked(project)
     if not re.fullmatch(r'local/scenes/[a-z0-9-]+/workspace/UE5/[A-Za-z][A-Za-z0-9_]*\.uproject',project.relative_to(ROOT).as_posix()):raise ValueError('independent scene copy required')
@@ -128,7 +130,7 @@ def main():
         if not re.fullmatch(r'/Game/SpatialLab/[A-Za-z][A-Za-z0-9_]*',args.experiment_map or ''):raise ValueError('fresh owned fixture map required')
     else:
         if not args.capture or not args.capture_job:raise ValueError('original source capture/job required')
-        tasks=prepare(args.capture.absolute(),args.capture_job.absolute(),project)
+        tasks=prepare(args.capture.absolute(),args.capture_job.absolute(),project,query_cell_policy=args.query_cell_policy)
         if args.action=='run' and (not args.tasks or not args.controls or read(args.tasks)!=tasks):raise ValueError('unchanged frozen tasks and controls required')
     out=create_run_directory(ROOT,args.out)
     if args.action=='prepare':write(out/'tasks.json',tasks);print(json.dumps(dict(runs=len(tasks['runs']),scope=tasks['scope'])));return
@@ -148,8 +150,11 @@ def main():
         script_args=[str(script).replace('\\','/'),'--map',args.experiment_map,'--out',str(out/'fixture.json').replace('\\','/')]
         job('fixture',[editor,project,'-run=pythonscript','-script='+subprocess.list2cmdline(script_args),*common,'-NullRHI'],
             {str(ROOT/build['binary']):build['binary_sha256'],str(script):file_hash(script)})
-        map_file=project.parent/'Content'/(args.experiment_map[len('/Game/'):]+'.umap');tasks=build_controls(args.experiment_map,file_hash(map_file));controls=None
-    else:controls=verify_controls(args.controls,project,build)
+        map_file=project.parent/'Content'/(args.experiment_map[len('/Game/'):]+'.umap');tasks=build_controls(args.experiment_map,file_hash(map_file),query_cell_policy=args.query_cell_policy);controls=None
+    else:
+        controls=verify_controls(args.controls,project,build)
+        if read(args.controls/'tasks.json').get('query_cell_policy')!=tasks.get('query_cell_policy'):
+            raise ValueError('task query indexing policy must match actual controls')
     import cv2
     import numpy as np
     write(out/'tasks.json',tasks);write(out/'environment.json',dict(engine=version,native_build=build,controls=controls,
@@ -158,6 +163,9 @@ def main():
     map_file=project.parent/'Content'/(tasks['map'][len('/Game/'):]+'.umap')
     inputs={str(ROOT/build['binary']):build['binary_sha256'],str(map_file):tasks['map_sha256'],str(out/'tasks.json'):file_hash(out/'tasks.json')}
     inputs.update({str(p):file_hash(p) for p in sorted((ROOT/'ue5/tools').glob('*.py'))});inputs[str(Path(__file__).absolute())]=file_hash(Path(__file__).absolute())
+    if args.action=='run':
+        for name in ('tasks.json','game.job.json','game.job.status.json','fixture.job.json','fixture.job.status.json'):
+            path=args.controls.absolute()/name;inputs[str(path)]=file_hash(path)
     job('game',[editor,project,tasks['map'],'-game','-SITPOnlineDepth='+str(out/'tasks.json'),'-SITPResult='+str(out/'execution.json'),
         '-SITPOnlineOutput='+str(out/'capture'),'-SITPTools='+str(ROOT/'ue5/tools'),'-SITPPython='+sys.executable,*common,
         '-RenderOffscreen','-AllowCommandletRendering','-benchmark','-UseFixedTimeStep','-FPS=60','-deterministic'],inputs)

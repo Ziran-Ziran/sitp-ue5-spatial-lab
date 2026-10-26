@@ -47,6 +47,15 @@ class OnlineDepthReportTests(unittest.TestCase):
     def test_actual_capture_decision_and_route_feedback_are_reproducible(self):
         self.assertTrue(self.audit()['success'])
 
+    def test_version_two_policy_is_bound_even_when_routes_happen_to_match(self):
+        self.task=dict(self.task,query_cell_policy='boundary_snap_1e-9_cell');event=self.raw['actions'][0]
+        event['request'].update(schema_version=2,query_cell_policy='boundary_snap_1e-9_cell')
+        event['response']=decide(event['request']);folder=Path(event['folder'])
+        for name,value in [('request.json',event['request']),('response.json',event['response'])]:(folder/name).write_text(json.dumps(value))
+        self.assertTrue(self.audit()['success'])
+        self.task['query_cell_policy']='legacy_floor'
+        with self.assertRaises(ValueError):self.audit()
+
     def test_fake_goal_camera_time_or_route_is_rejected(self):
         original=copy.deepcopy(self.raw)
         for mutate in (lambda r:r['actions'][0]['request'].update(goal_right_forward_m=[0,2]),
