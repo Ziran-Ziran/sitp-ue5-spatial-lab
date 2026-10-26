@@ -190,3 +190,16 @@ python scripts/compare_online_query_runs.py --project $sceneProject --capture ou
 ```
 
 新比较器从原采集重建全部任务，核对当前同 DLL、两套同策略控制、原始生产参数和源码闭包，并重新从实际像素审计完整运动。两条件规范化后必须仅有索引协议差异；不能删除失败位姿或把不同世界目标混成同一任务。每次 run 的锁内输入也冻结其控制 tasks/job/status 快照。
+
+## 城市受控颜色目标
+
+先具备原始 pitch 采集和当前 DLL 的完整视觉控制证据（`visual_marker_experiment.py --planner-variant legacy_centers`）。只给构造器原位姿来源与新地图名，不提供目标结果；两组实际任务复用同一覆盖地图：
+
+```powershell
+python scripts/city_marker_experiment.py prepare --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --experiment-map /Game/SpatialLab/CityMarkers_run1 --out output/city-marker-scene-run1
+python scripts/city_marker_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --scene output/city-marker-scene-run1 --controls output/marker-legacy-run1 --planner-variant legacy_centers --out output/city-marker-legacy-run1
+python scripts/city_marker_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --scene output/city-marker-scene-run1 --controls output/marker-legacy-run1 --planner-variant continuous_square_shortcuts --out output/city-marker-shortcuts-run1
+python scripts/city_marker_experiment.py compare --project $sceneProject --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --scene output/city-marker-scene-run1 --controls output/marker-legacy-run1 --runs output/city-marker-legacy-run1 output/city-marker-shortcuts-run1 --out output/city-marker-comparison-run1.json
+```
+
+prepare 的引擎查询、初始化与 NavMesh 重建仅为显式场景构造，受共享锁/超时/进程树守卫保护；原地图哈希必须保持不变。查看 placement-plan、fixture 和状态日志，空目标构造不能开始正向评测。run 才执行真正的城市像素目标任务；compare 只用 CPU 重建原完整任务，核对构造/控制/实际生产者/源码/DLL/地图并重算全部像素、动作、轨迹和事后真值关联。真实家具类别仍不在此入口的能力声明中。

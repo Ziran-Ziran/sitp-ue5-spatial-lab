@@ -50,9 +50,12 @@ class VisualMarkerReportTests(unittest.TestCase):
         self.assertTrue(self.audit()['candidate_reached'])
         report=evaluate(self.tasks,self.record,self.root,self.truth)
         self.assertEqual(report['overall']['runs'],12);self.assertEqual(report['overall']['successes'],1)
+        self.assertEqual(report['perception_associations']['selected_observations'],1)
+        self.assertEqual(report['perception_associations']['true_beacon_associations'],1)
         self.assertFalse(report['finished']);self.assertEqual(report['runs'][0]['failure_reason'],'missing_execution')
         truth=copy.deepcopy(self.truth);truth['entities'][0]['category']='blue_marker'
         self.assertEqual(evaluate(self.tasks,self.record,self.root,truth)['overall']['successes'],0)
+        self.assertEqual(evaluate(self.tasks,self.record,self.root,truth)['perception_associations']['nonmatching_color_selections'],1)
 
     def test_fake_candidate_motion_camera_or_engine_path_cannot_pass(self):
         original=copy.deepcopy(self.raw)

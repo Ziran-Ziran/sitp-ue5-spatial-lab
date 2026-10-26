@@ -36,6 +36,9 @@ def build_tasks(map_path,map_sha256,*,planner_variant=None):
 
 
 def validate_tasks(tasks):
+    if tasks.get('scope')=='frozen_city_marker_source_pose_tasks':
+        from city_marker_tasks import validate_city_tasks
+        return validate_city_tasks(tasks)
     version=tasks.get('schema_version');variant=tasks.get('planner_variant')
     expected_runs=fixed_runs()
     if version==2:
