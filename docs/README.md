@@ -6,6 +6,7 @@ SITP UE5 Spatial Lab 只承担UE5 仿真中的语义空间分析与路径规划�
 - [开发](development.md)：环境、测试与平台限制。
 - [研究计划](research-plan.md)与[路线图](roadmap.md)：假设、对照和验收。
 - [数据协议](data-contract.md)：输入、时间、单位、权限边界和评测。
+- [导航基线复现](navigation-baseline.md)：独立副本的 oracle 任务、执行、评分和合成 UE 验收。
 - [迁移](migration.md)：固定来源与旧工程的连续性。
 - [共享维护](shared-engineering.md)：可独立克隆的版本化工程副本。
 - [发布规则](repository-policy.md)：源码白名单与 GitHub 约定。

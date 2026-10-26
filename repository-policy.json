@@ -25,7 +25,8 @@
     "ue5/GSVSLAM/Config/DefaultGame.ini",
     "ue5/GSVSLAM/Config/DefaultInput.ini",
     ".github/CODEOWNERS",
-    "docs/local-scenes.md"
+    "docs/local-scenes.md",
+    "docs/navigation-baseline.md"
   ],
   "allowed_trees": [
     ".github/",
