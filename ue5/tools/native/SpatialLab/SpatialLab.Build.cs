@@ -10,6 +10,6 @@ public class SpatialLab : ModuleRules
         });
         PrivateDependencyModuleNames.AddRange(new string[] { "Json", "JsonUtilities" });
         if (Target.bBuildEditor)
-            PrivateDependencyModuleNames.Add("UnrealEd");
+            PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd", "PythonScriptPlugin" });
     }
 }

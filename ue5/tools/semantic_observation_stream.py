@@ -33,7 +33,8 @@ def iter_validated(records):
         raise ValueError('missing observation header') from None
     if (set(header)!=HEADER_KEYS or header['record_type']!='stream' or header['schema_version']!=1
             or header['condition']!=CONDITION or header['semantic_source']!='engine_actor_label'
-            or header['pose_source']!='engine_ground_truth' or header['route_source']!='global_engine_oracle_selected_routes'
+            or header['pose_source']!='engine_ground_truth' or header['route_source'] not in {
+                'global_engine_oracle_selected_routes','observation_dependent_engine_navmesh_geometry'}
             or header['visibility_method']!='panoramic_range_three_bbox_samples_first_hit_target'
             or header['units']!='centimeters' or header['coordinate_system']!='UE left-handed X-forward Y-right Z-up'
             or not header['map'].startswith('/Game/SpatialLab/')):

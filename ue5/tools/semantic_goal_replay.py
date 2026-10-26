@@ -122,7 +122,9 @@ def replay(goals,records,*,memory_ttl_s=5):
                 map=header['map'],manifest_sha256=header['manifest_sha256'],attempt_id=header['attempt_id'],
                 finished=all(r['route_status'] is not None for r in ordered),
                 route_source=header['route_source'],
-                interpretation='oracle-route-biased visibility supervision; availability and selection only, not visual recognition or counterfactual navigation success',
+                interpretation=('oracle-route-biased visibility supervision' if header['route_source']=='global_engine_oracle_selected_routes'
+                                else 'observation-dependent routes with engine geometry supervision')
+                    +'; offline availability and selection only, not visual recognition or counterfactual navigation success',
                 observation_failures=dict(Counter(r['observation_failure_reason'] for r in ordered if r['observation_failure_reason'])),
                 by_policy=summaries,runs=ordered,selections=selections)
 

@@ -36,6 +36,10 @@ class ObservationStreamTests(unittest.TestCase):
         self.assertEqual(len(self.validate()),7)
         self.assertEqual(sum(r.get('entities')==[] for r in self.validate()),2)
 
+    def test_observation_dependent_engine_geometry_route_is_explicit(self):
+        self.header['route_source']='observation_dependent_engine_navmesh_geometry'
+        self.assertEqual(len(self.validate()),7)
+
     def test_catalog_or_truth_fields_are_not_allowed(self):
         self.records[2]['all_targets']=[dict(entity_id='hidden',position_cm=[900,0,0])]
         with self.assertRaises(ValueError): self.validate()

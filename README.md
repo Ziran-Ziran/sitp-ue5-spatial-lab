@@ -4,7 +4,7 @@
 
 ## 研究边界与当前能力
 
-- **已有实现：**UE5 RGB-D 采集 C++ 源码、独立标定与输入检查、离线 VO/COLMAP/深度融合、ORB-SLAM3 顺序回放适配与评测；另有独立场景副本中的引擎 NavMesh/oracle 目标任务、CharacterMovement 执行与独立评分入口，以及局部可见性监督记录、逐帧/时序记忆目标选择回放。
+- **已有实现：**UE5 RGB-D 采集 C++ 源码、独立标定与输入检查、离线 VO/COLMAP/深度融合、ORB-SLAM3 顺序回放适配与评测；另有独立场景副本中的引擎 NavMesh/oracle 目标任务、CharacterMovement 执行与独立评分入口，以及局部可见性监督记录、逐帧/时序记忆回放和观测驱动的语义目标搜索。
 - **已做的本地验收：**UE 5.8.2 原生模块编译、合成地面/墙体的导航与碰撞控制案例，以及本地静态场景的固定 oracle 回合。资产与原始结果不随仓库发布，其他设备和场景仍需独立验收。
 - **尚待实现与验证：**视觉语义识别、观测估计的可通行地图与规划、语义场景关系；实时连续 SLAM、地图生命周期、渲染采集与导航的联动仍待验收。引擎名称、标签、位置和 NavMesh 仅用于显式 oracle 或监督条件。
 
@@ -32,6 +32,8 @@ Linux/macOS 将解释器路径换成 `.venv/bin/python`。部分链接权限或�
 `experiments/*.json` 是**设计阶段的研究配置**，尚未绑定数据或训练/导航执行器；`validate_project.py` 只检查配置与数据边界，不启动实验。
 
 可执行的本地 oracle 任务使用独立入口 `python scripts/navigation_experiment.py --help`，见[导航基线复现](docs/navigation-baseline.md)。它需要本机 UE 5.8、C++ 工具链和已登记的独立场景副本；不依赖 GameScaling、模型或真实客户端输入。
+
+局部监督搜索入口为 `python scripts/semantic_search_experiment.py --help`。它在当前观测/记忆中选择语义目标，通过引擎路径实际移动；探索点、位姿和标签仍是明确的引擎监督，尚未使用视觉模型或观测估计的几何地图。
 
 ## 可选的本地场景
 

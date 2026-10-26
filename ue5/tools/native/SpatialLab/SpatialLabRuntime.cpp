@@ -1,5 +1,6 @@
 #include "SpatialLabRuntime.h"
 #include "SpatialLabVisibility.h"
+#include "SpatialLabSearch.h"
 #include "AIController.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
@@ -36,6 +37,11 @@ void ASpatialLabGameMode::StartPlay()
 {
     Super::StartPlay();
     FString Input;
+    if (FParse::Value(FCommandLine::Get(), TEXT("SITPSearch="), Input))
+    {
+        GetWorld()->SpawnActor<ASpatialLabSearchRunner>();
+        return;
+    }
     if (FParse::Value(FCommandLine::Get(), TEXT("SITPPlan="), Input))
         GetWorld()->SpawnActor<ASpatialLabEpisodeRunner>();
 }
@@ -163,6 +169,8 @@ void ASpatialLabEpisodeRunner::BeginNext()
     if (!Controller) { FinishRun(TEXT("controller_spawn_failed")); return; }
     Controller->Possess(Agent);
     InitialFeet = Feet();
+    Previous = InitialFeet;
+    Trajectory[0] = JsonVector(InitialFeet);
     if (Visibility) Visibility->Sample(Agent,Feet(),true);
     Controller->GetPathFollowingComponent()->OnRequestFinished.AddUObject(this, &ASpatialLabEpisodeRunner::OnMoveFinished);
     FString Executor;

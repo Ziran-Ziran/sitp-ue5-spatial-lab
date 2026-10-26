@@ -6,12 +6,14 @@
 class FSpatialLabVisibilityRecorder
 {
 public:
-    bool Open(UWorld* World, const FString& Path, const FString& ManifestHash, const FString& AttemptId);
+    bool Open(UWorld* World, const FString& Path, const FString& ManifestHash, const FString& AttemptId,
+              const FString& RouteSource=TEXT("global_engine_oracle_selected_routes"));
     void BeginEpisode(const FString& RunId, double SimStart);
     void Sample(AActor* Observer, FVector Feet, bool Force=false);
     void EndEpisode(const FString& Status);
     bool Finish();
     bool IsHealthy() const { return Healthy; }
+    TSharedPtr<FJsonObject> GetLatestFrame() const { return LatestFrame; }
 private:
     TWeakObjectPtr<UWorld> World;
     TArray<TWeakObjectPtr<AActor>> Targets;
@@ -26,5 +28,6 @@ private:
     int32 Episodes = 0;
     bool Healthy = true;
     bool Closed = false;
+    TSharedPtr<FJsonObject> LatestFrame;
     void Write(const TSharedRef<FJsonObject>& Record);
 };
