@@ -77,3 +77,21 @@ python scripts/semantic_search_experiment.py run --engine-root $ueRoot --project
 合成控制包括：可见椅子到达、先探索绕墙再发现路灯并到达、首帧已在目标范围内的零移动到达、无效出生点和不允许探索时的预期失败。逐帧和时序记忆两种策略都执行。控制案例通过不等于城市任务全部成功。
 
 报告保留所有回合的成功/失败、碰撞、路长、模拟与 wall 时间、移动请求数以及动作审计。实际城市回合可能因观测漏报、不可达目标或探索范围耗尽失败；两种记忆策略也可能结果相同。不得根据真值调参、删回合或把回放目标可用率写成导航收益。当前路径和探索点仍使用引擎几何，未实现视觉语义或观测估计的可通行地图。
+
+## 与搜索关联的 RGB-D 位姿回放
+
+回放先在内置几何上验收当前 DLL 的同步像素/深度，再从既有搜索输出冻结采集计划。采集在当前静态场景重渲染，不让历史源模拟时间随渲染 wall 时间前进。先依据当前场景的独立照明条件设置 `$captureExposure`，不要把别的设备或场景的曝光当成事实。
+
+```powershell
+# 首次使用新地图；若明确复用自己的既有控制地图，可加 --reuse-fixture。
+python scripts/render_replay_experiment.py controls --engine-root $ueRoot --project $sceneProject --lock $resourceLock --experiment-map /Game/SpatialLab/RgbdControls_run1 --out output/render-controls-run1
+
+# $captureExposure 为预先确定的 EV100 数值；源 job 必须对应这份搜索观测。
+python ue5/tools/rendered_replay.py --observations output/search-execution-run1/observations.jsonl --source-job output/search-execution-run1/game.job.json --frames-per-episode 4 --exposure-ev100 $captureExposure --out output/render-plan-run1.json
+
+python scripts/render_replay_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --plan output/render-plan-run1.json --observations output/search-execution-run1/observations.jsonl --source-job output/search-execution-run1/game.job.json --controls output/render-controls-run1/capture --controls-job output/render-controls-run1/render.job.json --out output/render-execution-run1
+```
+
+输出包含 `input-report.json`、`capture/input/` 和独立的 `capture/evaluation/`。只把 input 下各 sequence 的像素/内参/源时间转交未来视觉模块；不要连同位姿或完整采集索引传入算法。当前输入检查拒绝真值字段、缺配对、串时间/位姿、换图及变化的源地图。控制验收也核对当前 DLL、脚本和实际输出目录；原生重编译后需对应控制证据。
+
+相机 heading 由过去运动推导，初始为 0，不是假定恢复了实际游戏相机。图像尚未驱动在线策略；曝光、深阴影与有效深度比例也不能当作语义识别成绩。详细坐标、深度、曝光与时间限制见数据合同。所有图像、标注、位姿和日志仍保留本地。

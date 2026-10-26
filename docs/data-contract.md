@@ -48,3 +48,15 @@ experiments 用按 scene 的 train/validation/test 互斥标识；不能从同�
 - 原生执行保留相同胶囊、速度、步长、碰撞定义、模拟时间/路长预算和 120 秒 wall 上限，策略另有 64 次命令预算。每个 episode 保存全轨迹和逐帧 policy_trace（frame_id、t_sim_s、输入 feedback、输出 action、桥接 wall 时间）。`navigation_requests` 统计 MoveTo 调用，不能当作内部 NavMesh 查询数，不能与 oracle 的显式 path_queries 声称等算力。
 - 评分仅接受 `ue_game_world_observation_dependent_search` 的实际执行和对应路线声明。成功必须为 `candidate_reached`、观测来源与记忆时效有效、全动作能逐帧重现，且独立标注中的类别和实际终点距离通过。oracle 的 arrived/success 状态不能绕过搜索来源检查。失败、零帧及缺失执行进入分母；未知碰撞不当作零。模拟与 wall 时间分开，episode wall 包含同步 Python 桥和移动，排除引擎启动。
 - 原生模块和两个在线 Python 源文件的哈希在拿到共享锁后检查；原生构建记录源码与 DLL 对应关系。响应文件每帧独占创建，校验 attempt/run/frame 后删除；旧响应或 Python 异常使回合失败，不沿用上一次动作。
+
+## 与搜索关联的 RGB-D 静态位姿回放（schema_version 1）
+
+`rendered_replay.py` 仅接受已完成的观测驱动搜索流，默认按每回合源帧索引均匀选取 4 帧（可预先指定 2..8，含首末帧）；零帧失败仍保留。回放相机位置采用记录眼点，yaw 只由当前与上一帧 XY 位移推导，静止时保留朝向，初始 yaw=0，pitch/roll=0。它没有恢复实际游戏相机，也不从未来帧或目标坐标选择视角。
+
+- 采集计划绑定源 stream、原 search job 与 execution 的 SHA-256、attempt UUID、冻结地图文件字节哈希和回放计划哈希。源 job 必须实际输出对应观测/执行，状态、首末脚底与模拟时间匹配；同名地图改内容也会被拒绝。bounded status 保存原始任务文件字节的 `spec_sha256` 和锁内实际核验的 `verified_input_sha256` 快照；来源与控制检查均核对二者，不能修改任务哈希后复用旧状态。无快照的历史状态不补填，须新执行。只绑定源 `.umap` 字节，外部引用资产与光照按当前加载状态重渲染，不声称恢复全部历史引擎状态。
+- 原生 `CapturePose` 使用独立 RGB/Depth SceneCapture，在同一静态相机变换发起渲染、同步 flush 后读回。RGB 为 FinalColorLDR、BGRA8 经 PNG 编码，不翻转；通常解码成 BGR。深度为 SceneDepth R32 float 厘米，以 RCM_MinMax 原值读取，四舍五入为 uint16 光轴毫米 PNG。0 无效，超过 30 m 或非有限值写 0；读取器也将历史 65535 视为无效，原生输出不生成有效 65535。
+- 固定尺寸 320×240、水平视角 90°，无畸变，fx=fy=160、cx=159.5、cy=119.5，像素中心采用整数坐标。局部相机反投影约定为 CV 右手系 X 右/Y 下/Z 前；评测位姿保留 UE 左手系厘米、Pitch/Yaw/Roll 角度。合成彩色方块的投影/尺寸检验是像素级粗检查，不是亚像素标定或真实传感器标定。
+- 曝光预先显式冻结；可按场景已有独立光照/后处理设置确定，不按导航成绩或语义真值挑选。采集进程临时设置扩展亮度范围为 EV100，bias=0，固定 min/max 为指定曝光，并记录原工程亮度模式及 override scope。原生拒绝亮度单位不符的调用；不写项目配置、素材或系统设置。控制案例验证 EV1 与 EV13 改变 RGB 而不改变深度。
+- `capture/input/sequence_NNN/` 是算法侧，只允许 sensor.json、timestamps.jsonl、frames/、depth/。不含引擎位姿、地图名、源回合标签或实体表。timestamps 为连续新 frame_id 与 `t_source_sim_s`，来源 `replay_source_simulated_seconds`；它是保存的回合模拟时间，既不是渲染吞吐率，也不是物理传感器采样时钟。当前 SLAM 输入工具未适配此专用回放时钟，不据此声称 SLAM 已验收。
+- `capture/evaluation/` 独立保存计划、源回合/源帧映射与实际引擎相机变换。采集器写出后立即记录每对 PNG 的哈希；消费端核对计划、实际位姿、源时间、数量、captured 状态与文件哈希，拒绝换图、串回合和任意单调时间。控制像素目录还必须对应同一次 bounded job 的实际 `--out`、原生 DLL 和控制脚本。
+- 输入检查报告逐帧有效深度比例、RGB 空间变化、白色裁剪/暗区/有色像素比例及哈希，不丢弃暗帧或空深度。`input_contract_ready` 只表示配对与来源合同完整，不能当作视觉识别、可通行估计、实时采集或 SLAM 成功。早期过曝或缺少关联字段的本地产物保留，不按新协议补写原始数据。

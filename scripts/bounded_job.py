@@ -94,7 +94,8 @@ class WindowsTree:
 
 def run(spec_path):
     spec_path = Path(spec_path).resolve()
-    spec = json.loads(spec_path.read_text(encoding='utf-8-sig'))
+    spec_bytes = spec_path.read_bytes()
+    spec = json.loads(spec_bytes.decode('utf-8-sig'))
     timeout = spec['timeout_s']
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or not 0 < timeout <= 3600:
         raise ValueError('timeout_s must be finite, positive and at most 3600')
@@ -119,6 +120,7 @@ def run(spec_path):
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     token = uuid.uuid4().hex
     state = dict(schema_version=1, command=command, cwd=spec['cwd'], runner_pid=os.getpid(),
+                 spec_sha256=hashlib.sha256(spec_bytes).hexdigest(),
                  host=__import__('socket').gethostname(), started_at=now(), status='starting',
                  log=str(log_path), timeout_s=timeout, timed_out=False, tree_cleaned=False, token=token)
     wait = spec.get('lock_wait_s',0)
@@ -173,6 +175,7 @@ def run(spec_path):
                 with Path(filename).open('rb') as stream:
                     if hashlib.file_digest(stream,'sha256').hexdigest()!=expected:
                         raise ValueError('input changed before locked process launch')
+            state['verified_input_sha256']=dict(inputs)
             state['inputs_verified']=True
             if os.name == 'nt':
                 tree = WindowsTree()

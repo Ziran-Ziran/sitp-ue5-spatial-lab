@@ -113,3 +113,9 @@ python ue5/tools/inspect_slam_input.py <image-directory-or-video-or-map> --out <
 见[导航基线复现](navigation-baseline.md)。`scripts/navigation_experiment.py` 提供 prepare/run/synthetic；它将本仓库的 SpatialLab 源码暂存到独立场景副本，使用本机 UE 5.8 C++ 工具链编译。不会把 GSVSLAM 的资产缺失问题隐式当成已解决，也不依赖该采集模块或另一仓库。
 
 UE/build 子进程必须使用显式共享锁和超时，Windows Job Object 覆盖整个进程树；锁忙最多等待 60 秒，随后保留状态并退出，不夺锁。完成截止在取得锁后重算，并保留 20 秒清理预算。CPU 离线模块无需该锁。普通 CI 不运行 UE 集成验收；本机合成 UE 和场景结果需独立报告。
+
+## 搜索位姿的离线 RGB-D 回放
+
+`scripts/render_replay_experiment.py` 需要实际渲染、PythonScriptPlugin 和对应 GPU，使用 `-AllowCommandletRendering -RenderOffscreen`，不能加 NullRHI。首次编译材质可能较慢；查看当前有界任务的 shader/log/PID，不重复启动。局部环境曾在未使用的 SM5 着色器路径出现 Niagara 编译错误，而 D3D12 控制渲染完成；退出码与像素验收必须同时检查，不能只忽略日志。
+
+渲染前先通过内置彩色几何、光轴深度、位姿平移/重复、空视野和曝光控制。若原工程使用旧亮度单位，采集进程明确切为 EV100；不更改磁盘配置。场景已有曝光值是独立依据，光照退化、阴影或裁剪仍需报告，不能为了导航分数调整。复现命令与算法/评测目录边界见 navigation-baseline.md 和 data-contract.md。

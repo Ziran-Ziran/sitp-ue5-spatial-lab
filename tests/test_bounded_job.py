@@ -1,5 +1,6 @@
 """Synthetic subprocesses only: resource ownership and process-tree lifetime."""
 import importlib.util
+import hashlib
 from datetime import datetime,timedelta,timezone
 import json
 import os
@@ -47,6 +48,14 @@ class BoundedJobTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertFalse((self.root / 'unexpected').exists())
         self.assertEqual(self.lock.read_text(), 'another owner; do not remove')
+
+    def test_status_freezes_original_spec_and_verified_inputs(self):
+        source=self.root/'fixture.bin';source.write_bytes(b'original')
+        inputs={str(source):hashlib.sha256(source.read_bytes()).hexdigest()}
+        result,state=self.run_job("print('snapshot')",inputs=inputs)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(state['spec_sha256'],hashlib.sha256((self.root/'job.json').read_bytes()).hexdigest())
+        self.assertEqual(state['verified_input_sha256'],inputs)
 
     def test_timeout_kills_grandchild_before_releasing_lock(self):
         code = ("import subprocess,sys,time; "
