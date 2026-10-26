@@ -67,8 +67,9 @@ def audit_execution(task,raw,artifacts,attempt,run_index,*,exposure=1):
                 raise ValueError('movement/candidate after observation or worker failure')
             continue
         request=event['request']
-        if (request.get('schema_version')!=(2 if 'planner_variant' in task else 1)
-                or request.get('planner_variant')!=task.get('planner_variant')):raise ValueError('changed visual planner variant/schema')
+        if (request.get('schema_version')!=(3 if 'goal_horizon_policy' in task else 2 if 'planner_variant' in task else 1)
+                or request.get('planner_variant')!=task.get('planner_variant')
+                or request.get('goal_horizon_policy')!=task.get('goal_horizon_policy')):raise ValueError('changed visual planner/horizon/schema')
         if (request!=read(folder/'request.json') or request['attempt_id']!=attempt or request['run_id']!=task['run_id']
                 or request['step_id']!=step or request['t_sim_s']!=timestamp or request['category']!=task['category']
                 or request['consecutive_empty_views']!=empty or Path(request['input_dir']).absolute()!=folder/'input'):
@@ -194,7 +195,9 @@ def evaluate(tasks,record,artifacts,truth):
         nonmatching_color_selections=sum(not a['matched'] for a in associations),
         runs_with_true_selection=sum(any(a['matched'] for a in row.get('selection_associations',[])) for row in scores),
         interpretation='post-run 50cm metric association to active same-category beacon truth; not visible-target recall or calibrated confidence')
-    return dict(schema_version=tasks['schema_version'],planner_variant=tasks.get('planner_variant','legacy_centers'),condition=CONDITION,attempt_id=attempt,manifest_sha256=tasks['manifest_sha256'],
+    result=dict(schema_version=tasks['schema_version'],planner_variant=tasks.get('planner_variant','legacy_centers'),condition=CONDITION,attempt_id=attempt,manifest_sha256=tasks['manifest_sha256'],
         finished=record.get('finished') is True and len(actual)==len(expected),overall=summarize(scores),perception_associations=perception,
         by_category={category:summarize([r for r in scores if r['category']==category]) for category in sorted(CATEGORIES)},runs=scores,
         interpretation='controlled red/blue RGB-marker categories, optical-depth goals and direct movement; engine pose for reset/actuation only, synthetic fixture, no furniture/generalization or real-time claim')
+    if tasks['schema_version']==3:result['goal_horizon_policy']=tasks['goal_horizon_policy']
+    return result

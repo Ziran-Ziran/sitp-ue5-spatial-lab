@@ -16,6 +16,7 @@ from stage_navigation import unlinked
 from visual_marker_tasks import build_tasks
 from visual_marker_report import evaluate
 from continuous_grid_planner import VARIANTS
+from marker_goal_horizon import POLICIES
 
 
 def control_acceptance(report,record):
@@ -39,8 +40,10 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('engine-root','project','lock','out','geometry-controls'):parser.add_argument('--'+name,type=Path,required=True)
     parser.add_argument('--planner-variant',choices=VARIANTS)
+    parser.add_argument('--goal-horizon-policy',choices=POLICIES)
     parser.add_argument('--experiment-map',required=True);parser.add_argument('--start-before');parser.add_argument('--finish-before');args=parser.parse_args()
     project=args.project.absolute();unlinked(project)
+    if args.goal_horizon_policy is not None and args.planner_variant is None:raise ValueError('horizon ablation requires an explicit fixed planner')
     if (not re.fullmatch(r'local/scenes/[a-z0-9-]+/workspace/UE5/[A-Za-z][A-Za-z0-9_]*\.uproject',project.relative_to(ROOT).as_posix())
             or not re.fullmatch(r'/Game/SpatialLab/[A-Za-z][A-Za-z0-9_]*',args.experiment_map)):
         raise ValueError('independent project copy and new owned marker map required')
@@ -61,7 +64,7 @@ def main():
     job('fixture',[editor,project,'-run=pythonscript','-script='+subprocess.list2cmdline(argv),*common,'-NullRHI'],
         {str(ROOT/build['binary']):build['binary_sha256'],str(script):file_hash(script)})
     map_file=project.parent/'Content'/(args.experiment_map[len('/Game/'):]+'.umap')
-    tasks=build_tasks(args.experiment_map,file_hash(map_file),planner_variant=args.planner_variant);write(out/'tasks.json',tasks)
+    tasks=build_tasks(args.experiment_map,file_hash(map_file),planner_variant=args.planner_variant,goal_horizon_policy=args.goal_horizon_policy);write(out/'tasks.json',tasks)
     import cv2
     import numpy as np
     write(out/'environment.json',dict(engine=version,native_build=build,geometry_controls=geometry_controls,

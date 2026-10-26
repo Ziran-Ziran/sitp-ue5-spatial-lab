@@ -14,14 +14,16 @@ from local_depth_grid import GridConfig,multiview_grid,number
 from online_depth_policy import CALIBRATION,inspect_observation,route_prefix,write_observation
 from rendered_input_report import file_hash
 from visual_marker import CATEGORIES,detect_markers
+from marker_goal_horizon import observed_goal,POLICIES
 
 REQUEST_KEYS={'schema_version','attempt_id','run_id','step_id','t_sim_s','input_dir','category','consecutive_empty_views'}
 
 
 def decide(request):
     begun=time.perf_counter()
-    version=request.get('schema_version');keys=REQUEST_KEYS|({'planner_variant'} if version==2 else set())
-    if set(request)!=keys or version not in (1,2) or (version==2 and request['planner_variant'] not in VARIANTS):
+    version=request.get('schema_version');keys=REQUEST_KEYS|({'planner_variant'} if version in (2,3) else set())|({'goal_horizon_policy'} if version==3 else set())
+    if (set(request)!=keys or version not in (1,2,3) or (version in (2,3) and request['planner_variant'] not in VARIANTS)
+            or version==3 and request['goal_horizon_policy'] not in POLICIES):
         raise ValueError('isolated versioned visual category request required')
     try:canonical=str(uuid.UUID(request['attempt_id']))
     except (ValueError,TypeError,AttributeError):raise ValueError('canonical attempt required') from None
@@ -39,7 +41,8 @@ def decide(request):
     result.update(schema_version=1,evidence_kind='rgb_marker_depth_observed_target_action',selected=selected,
         detection_report=detections,input_files_sha256=hashes,waypoints_right_forward_m=[],relative_yaw_delta_deg=0,
         geometry_goal_right_forward_m=None,geometry=None)
-    if version==2:result.update(schema_version=2,planner_variant=request['planner_variant'])
+    if version in (2,3):result.update(schema_version=version,planner_variant=request['planner_variant'])
+    if version==3:result['goal_horizon_policy']=request['goal_horizon_policy']
     if selected is None:
         if request['consecutive_empty_views']<3:result.update(action='rotate',reason='target_category_not_observed',relative_yaw_delta_deg=90)
         else:result.update(action='stop',reason='target_not_observed_after_scan')
@@ -47,6 +50,7 @@ def decide(request):
     else:
         r,f,_=selected['position_right_forward_up_m'];distance=selected['planar_range_m']
         travel=min(3,distance-.9);goal=[r*travel/distance,f*travel/distance]
+        if version==3:goal=observed_goal(selected['position_right_forward_up_m'],distance,request['goal_horizon_policy'])
         config=GridConfig();grid=multiview_grid(views,CALIBRATION,config)
         if version==1:
             planning=plan_grid(grid,(0,0),goal)

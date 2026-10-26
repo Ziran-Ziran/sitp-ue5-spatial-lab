@@ -242,3 +242,30 @@ python scripts/marker_perception_diagnostics.py --run output/city-marker-legacy-
 ```
 
 第一条诊断必须先通过保存中性场景的可见/隐藏/遮挡/无效出生控制。第二条仍只做 CPU 评测，没有 UE 启动、目标位姿输入策略或新的导航成功。`city_marker_experiment.py audit/compare` 也可显式传 `--worker-source-commit`；不传时继续严格核对当前 worker。历史验证不修改工作区、旧输出或原始 status/job；缺失依赖/代码变化/错误源提交直接失败。
+
+
+## 目标规划视距对照
+
+先做同图 CPU 对照；它严格重算旧 schema 2 响应，保留原观测/heading/搜索计数，只报告新动作可用性：
+
+```powershell
+python ue5/tools/marker_horizon_replay.py --execution output/city-marker-legacy-run1/execution.json --out output/marker-horizon-replay-run1.json
+```
+
+实际两条件均使用 `legacy_centers`。先以当前构建重新验收共同几何控制，再各运行完整颜色控制；为两个 `$horizonTag` 分别设 `ThreeRun1`/`OneRun1`，policy 分别为 `fixed_three_meters`/`execution_prefix_one_meter`，输出与地图须新建：
+
+```powershell
+$horizonTag = 'ThreeRun1'
+$horizonPolicy = 'fixed_three_meters'
+python scripts/visual_marker_experiment.py --engine-root $ueRoot --project $sceneProject --lock $resourceLock --geometry-controls output/online-controls-run1 --planner-variant legacy_centers --goal-horizon-policy $horizonPolicy --experiment-map "/Game/SpatialLab/Horizon$horizonTag" --out "output/horizon-$horizonTag-controls"
+```
+
+用同一当前构建 prepare 一张新的城市覆盖地图，两条件复用它；原构造规则和全部源位姿不变：
+
+```powershell
+python scripts/city_marker_experiment.py prepare --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --experiment-map /Game/SpatialLab/HorizonCity_run1 --out output/horizon-city-scene-run1
+python scripts/city_marker_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --scene output/horizon-city-scene-run1 --controls "output/horizon-$horizonTag-controls" --planner-variant legacy_centers --goal-horizon-policy $horizonPolicy --out "output/horizon-$horizonTag-city"
+python scripts/compare_marker_horizon_runs.py --project $sceneProject --scene output/horizon-city-scene-run1 --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --runs output/horizon-ThreeRun1-city output/horizon-OneRun1-city --controls output/horizon-ThreeRun1-controls output/horizon-OneRun1-controls --out output/horizon-city-comparison-run1.json
+```
+
+新控制必须通过原完整验收，实际城市运行前核验相同视距的控制。所有重任务继续传原共享锁及截止时间参数；CPU 比较器重建全部原任务、来源和实际像素/动作/轨迹，不补写历史原始输出。
