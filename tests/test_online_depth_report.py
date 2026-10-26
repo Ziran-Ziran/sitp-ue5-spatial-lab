@@ -80,3 +80,15 @@ class OnlineDepthReportTests(unittest.TestCase):
     def test_other_failures_still_need_pixel_supported_motion(self):
         self.raw.update(status='blocked_no_progress',actions=[],capture_count=0,capture_wall_s=0,policy_bridge_wall_s=0,waypoint_events=[])
         with self.assertRaises(ValueError):self.audit()
+
+    def test_wall_budget_preempts_geometry_rejection_at_the_same_stopped_pose(self):
+        event=self.raw['actions'][0];pixels=Path(event['request']['input_dir'])
+        for name,depth in analytic_views(wall=1.8).items():cv2.imwrite(str(pixels/name/'depth.png'),depth)
+        (pixels/'observation.json').unlink();write_observation(pixels,0)
+        response=decide(event['request']);self.assertEqual(response['action'],'reject')
+        event['response']=response;(Path(event['folder'])/'response.json').write_text(json.dumps(response))
+        self.raw.update(status='wall_timeout',waypoint_events=[],trajectory_cm=[[0,0,2]],final_position_cm=[0,0,2],
+            continuous_path_length_cm=0,sim_s=0,wall_s=60.001)
+        score=self.audit();self.assertTrue(score['measurement_valid']);self.assertFalse(score['success'])
+        self.raw['wall_s']=1
+        with self.assertRaises(ValueError):self.audit()

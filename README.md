@@ -46,6 +46,8 @@ RGB-D 位姿回放入口为 `python scripts/render_replay_experiment.py --help`�
 
 `scripts/online_depth_experiment.py` 进一步在本次实际运动后停下采 RGB-D，并比较初始路线与每至多一米重新观察/规划。它仍是引擎位姿监督下的几何局部任务，已验收受控观察反馈；没有视觉语义识别、估计定位或连续实时采样。
 
+受控视觉类别入口 `scripts/visual_marker_experiment.py` 使用固定 HSV 红/蓝标记检测、光轴深度局部目标、深度路径和同一直接动作模块。类别来自 RGB，任务请求不含目标坐标；真值只在结束后独立评分。它面向可核验的颜色标记控制，家具识别与跨场景泛化仍未实现。
+
 ## 可选的本地场景
 
 已提供[两项目本地场景接入](docs/local-scenes.md)：共用源素材登记，各自维护独立 UE 实验副本；素材与本机绑定不上传 Git，也不构成训练或导航已验收。

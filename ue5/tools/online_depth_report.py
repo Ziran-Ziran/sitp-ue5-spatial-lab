@@ -33,6 +33,8 @@ def audit_execution(task,raw,artifacts,attempt,run_index,*,exposure):
     if not raw['agent_spawned'] or not path:raise ValueError('measured attempt needs actual agent/trajectory')
     initial,final=position(raw['initial_position_cm']),position(raw['final_position_cm'])
     length=sum(math.dist(a,b) for a,b in zip(path,path[1:]));sim=metric(raw['sim_s']);wall=metric(raw['wall_s'])
+    if raw['status']=='wall_timeout' and wall<60:raise ValueError('wall timeout before its actual budget')
+    budget_preempt=raw['status']=='wall_timeout' and wall>=60
     if (math.dist(initial,path[0])>.01 or math.dist(final,path[-1])>.01
             or abs(metric(raw['continuous_path_length_cm'])-length)>.01 or abs(sim-(len(path)-1)/60)>.002
             or any(distance_xy(a,b)>6 for a,b in zip(path,path[1:]))):raise ValueError('invalid actual trajectory, speed or time')
@@ -77,7 +79,7 @@ def audit_execution(task,raw,artifacts,attempt,run_index,*,exposure):
         metric(response['geometry_and_planning_wall_s'])
         metric(response['planning']['planner_wall_s'])
         if response['action']=='reject':
-            if (step!=len(actions)-1 or raw['status']!='geometry_'+response['reason']
+            if (step!=len(actions)-1 or (raw['status']!='geometry_'+response['reason'] and not budget_preempt)
                     or abs(timestamp-sim)>.002 or math.dist(final,event['feet_cm'])>.01):
                 raise ValueError('rejected geometry was executed or mislabeled')
             continue

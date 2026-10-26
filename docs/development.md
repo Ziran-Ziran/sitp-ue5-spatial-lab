@@ -149,3 +149,15 @@ python ue5/tools/pitch_sweep_report.py --input output/pitch-execution-run1/captu
 `scripts/online_depth_experiment.py` 提供 prepare/synthetic/run，见 navigation-baseline.md。prepare 只用 CPU 冻结源位姿任务；synthetic 编译并创建独立无 NavMesh 控制地图；run 实际 GPU 采图与直接动作。数值 worker 使用启动器当前 Python，需已有 numpy/opencv；UE 内嵌 Python 只负责有界子进程。每次观察单独保存严格 input、request/response 和原生相机/动作/轨迹证据，审计不读取全场景几何。
 
 新任务输出和地图必须不存在。当前原生 DLL 与策略源码控制必须通过，子进程也受共享锁下的父进程树约束。观察期间不修改冻结源码或输入；任何失败先查本次日志/状态/像素/动作，不复用旧响应或补写原始证据。该模式是停走观察，不是连续实时传感器或完整语义目标导航。
+
+## 受控 RGB 标记目标
+
+`visual_marker.py`、`visual_marker_depth_policy.py` 只用 BGR 图像/光轴深度与已知局部外参。固定类别规则、缺失处理、四朝向搜索与距离/预算见 data-contract.md。算法请求不包含目标世界坐标；`visual_marker_report.py` 在像素/动作审计后才读取单独的 fixture truth。
+
+先以当前源码运行 online_depth_experiment.py synthetic，完成编译并验收共同采图/动作分支，再使用新地图和输出：
+
+```powershell
+python scripts/visual_marker_experiment.py --engine-root $ueRoot --project $sceneProject --lock $resourceLock --geometry-controls output/online-controls-run1 --experiment-map /Game/SpatialLab/MarkerControls_run1 --out output/marker-controls-run1
+```
+
+入口创建自己的中性地面、unlit 色标与遮挡墙，保存独立 truth 后执行固定全部任务。truth 的路径不会传入 UE 游戏或数值 worker；其哈希由外层任务守卫保护，评分器只在结束后读取。日志、图像、地图、轨迹和 truth 均保留忽略目录。合成 CPU 用例、真实控制场景与城市研究结果须分别报告。
