@@ -9,6 +9,7 @@
 class ACharacter;
 class AAIController;
 struct FPathFollowingResult;
+class FSpatialLabVisibilityRecorder;
 
 /** Headless experimental Game world, with no desktop input or recorder hooks. */
 UCLASS()
@@ -38,6 +39,7 @@ private:
     TArray<TSharedPtr<FJsonValue>> Results;
     TArray<TSharedPtr<FJsonValue>> Trajectory;
     FString ResultPath;
+    FString AttemptId;
     int32 Index = -1;
     int32 CollisionEvents = 0;
     double StartedWall = 0;
@@ -49,9 +51,11 @@ private:
     double WalkedCm = 0;
     FVector Goal = FVector::ZeroVector;
     FVector Previous = FVector::ZeroVector;
+    FVector InitialFeet = FVector::ZeroVector;
     bool Active = false;
     bool Done = false;
     FString LastMoveResult;
+    TSharedPtr<FSpatialLabVisibilityRecorder> Visibility;
     void BeginNext();
     void FinishRun(const FString& Status);
     void Save(bool Finished);

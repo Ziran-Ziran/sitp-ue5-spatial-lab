@@ -22,6 +22,8 @@ from navigation_build import verify_build,file_hash
 from navigation_tasks import build_manifest,validate_plan
 from navigation_report import evaluate
 from runtime_acceptance import validate_synthetic
+from semantic_observation_stream import jsonl,inspect_records
+from visibility_acceptance import validate_synthetic_visibility
 
 
 def read(path):
@@ -65,6 +67,7 @@ def main():
     parser.add_argument('--experiment-map',help='fresh /Game/SpatialLab/<name>; required for prepare/synthetic')
     parser.add_argument('--tasks',type=Path)
     parser.add_argument('--plans',type=Path)
+    parser.add_argument('--record-observations',action='store_true',help='opt-in explicit engine local-visibility supervision stream')
     parser.add_argument('--start-before',help='ISO timestamp with timezone; reject starting a heavy job after this')
     parser.add_argument('--finish-before',help='ISO timestamp with timezone; includes a 20s cleanup reserve')
     args=parser.parse_args()
@@ -77,6 +80,8 @@ def main():
         raise ValueError('project must be a local independent scene workspace')
     if args.action!='run' and not re.fullmatch(r'/Game/SpatialLab/[A-Za-z][A-Za-z0-9_]*',args.experiment_map or ''):
         raise ValueError('provide a fresh experiment map under /Game/SpatialLab/')
+    if args.action=='prepare' and args.record_observations:
+        raise ValueError('observations require run or synthetic Game-world execution')
     manifest=plans=None
     if args.action=='run':
         if not args.tasks or not args.plans:
@@ -108,8 +113,11 @@ def main():
         binary=ROOT/built['binary']
         map_file=project.parent/'Content'/(map_path[len('/Game/'):]+'.umap')
         inputs={str(binary):built['binary_sha256'],str(plan_path):file_hash(plan_path),str(map_file):file_hash(map_file)}
-        job('game',[editor,project,map_path,'-game','-SITPPlan='+str(plan_path),'-SITPResult='+str(result_path),
+        sensor=['-SITPObservations='+str(out/'observations.jsonl')] if args.record_observations else []
+        job('game',[editor,project,map_path,'-game','-SITPPlan='+str(plan_path),'-SITPResult='+str(result_path),*sensor,
                     *common,'-benchmark','-UseFixedTimeStep','-FPS=60','-deterministic'],inputs=inputs)
+        if args.record_observations:
+            write(out/'observations-summary.json',inspect_records(jsonl(out/'observations.jsonl'),read(result_path)))
     if args.action in ('prepare','synthetic'):
         job('build',[sys.executable,ROOT/'scripts/navigation_build.py','--project',project,
                      '--builder',builder,'--owned-lock',args.lock.absolute()],1200)
@@ -123,13 +131,19 @@ def main():
         validate_plan(manifest,read(out/'plans.json'))
         print('PREPARED: frozen tasks and plans; Game-world execution still required')
     elif args.action=='synthetic':
+        sensor_fixture=['--semantic-fixture'] if args.record_observations else []
         python_job('fixture','runtime_fixture.py','--map',args.experiment_map,
-                   '--out',out/'fixture.json','--plan',out/'plans.json')
+                   '--out',out/'fixture.json','--plan',out/'plans.json',*sensor_fixture)
         game_job(args.experiment_map,out/'plans.json',out/'execution.json')
         acceptance=validate_synthetic(read(out/'execution.json'))
         write(out/'acceptance.json',acceptance)
         if not acceptance['passed']:
             raise RuntimeError('synthetic acceptance failed; failures preserved')
+        if args.record_observations:
+            visibility=validate_synthetic_visibility(read(out/'fixture.json'),jsonl(out/'observations.jsonl'))
+            write(out/'visibility-acceptance.json',visibility)
+            if not visibility['passed']:
+                raise RuntimeError('synthetic visibility controls failed; see preserved stream')
         print('PASSED: synthetic UE Game-world integration; city and visual semantics are separate')
     else:
         # Copy exactly validated definitions into this attempt; never overwrite originals.

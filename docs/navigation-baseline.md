@@ -43,3 +43,18 @@ prepare 只证明编辑器查询与任务定义，不证明移动成功。run �
 详细坐标、脚底参考点、预算、成功与碰撞定义见 [数据合同](data-contract.md)。这是单一静态场景、引擎标签监督/oracle 的端到端最小环境；固定回合不代表视觉识别、场景泛化、动态避障或实时 RGB-D 闭环已完成。
 
 所有地图、素材、清单、实际轨迹、原始报告、构建文件和日志保留在本地忽略目录。公开内容只包含通用源码、合成测试和复现说明。
+
+## 局部语义监督和记忆回放
+
+在 `run` 或 `synthetic` 命令追加 `--record-observations`，额外生成真实角色位姿下的 `observations.jsonl` 和与本次执行关联的检查摘要。synthetic 同时增加可见椅子、初始被墙遮挡且绕行后可见的路灯控制物；物体使用引擎内置立方体，不依赖城市资产。四个移动控制案例与可见性控制分别验收。
+
+先导出策略允许的目标类别，再单独回放；示例路径按实际输出替换：
+
+```powershell
+python ue5/tools/semantic_goal_replay.py export-goals output/nav-prepare-run1/tasks.json --out output/goals-only-run1.json
+python ue5/tools/semantic_goal_replay.py replay --goals output/goals-only-run1.json --observations output/nav-execution-run1/observations.jsonl --ttl-s 5 --out output/semantic-replay-run1.json
+```
+
+回放比较当前帧与 5 秒 TTL 记忆的目标可用率，不读全场景实体表或未来帧。空帧、零帧失败和缺失回合单独报告。范围、眼高、三个包围盒射线样本及引擎标签均显式声明；完整字段与时钟见数据合同。这种保守采样会漏掉未被射线命中的物体。已有到达回合也可能没有目标类别观测，应保留并诊断，不能按终点真值选择参数。
+
+路线仍由原有全局引擎 oracle 规划；离线选择不会改变角色运动。此结果不能表示观测驱动导航、视觉语义识别或记忆改善了导航成功率。`inspect_visibility_failures.py` 只在事后读取目标与几何作诊断，其输出不能作为策略输入。
