@@ -21,7 +21,7 @@ def file_hash(path):
     with path.open('rb') as source:return hashlib.file_digest(source,'sha256').hexdigest()
 
 
-def inspect_sequence(directory):
+def inspect_sequence(directory,*,pitch_down_deg=None):
     directory=Path(directory).absolute();unlinked(directory)
     if {path.name for path in directory.iterdir()}!={'sensor.json','timestamps.jsonl','frames','depth'}:
         raise ValueError('algorithm sequence accepts only sensor/timestamps/RGB/depth, never pose or evaluation files')
@@ -31,6 +31,9 @@ def inspect_sequence(directory):
     expected=dict(schema_version=1,modality='rgbd_offline_pose_replay',calibration=CALIBRATION,
         depth=DEPTH,render_settings=sensor['render_settings'],time_source='replay_source_simulated_seconds',
         timestamp_interpretation='saved engine episode time; not physical sensor sampling or render throughput')
+    if pitch_down_deg is not None:
+        from pitch_sweep_protocol import expected_view_metadata
+        expected=expected_view_metadata(sensor['render_settings'],pitch_down_deg)
     if sensor!=expected:raise ValueError('unexpected or privileged replay sensor metadata')
     timestamps=[json.loads(line) for line in (directory/'timestamps.jsonl').read_text(encoding='utf-8-sig').splitlines()]
     last=-1
@@ -66,6 +69,24 @@ def inspect_sequence(directory):
     return result
 
 
+def validate_capture_frame(native,frame,mapping,stamp,stats,prefix,exposure):
+    from pitch_sweep_protocol import rotation_matches
+    if (native.get('captured') is not True or type(native.get('frame_id'))!=int or native['frame_id']!=frame['frame_id']
+            or native.get('width')!=320 or native.get('height')!=240
+            or native.get('fixed_exposure_ev100')!=exposure
+            or stamp!={key:frame[key] for key in ('frame_id','t_source_sim_s')}
+            or native.get('rgb_sha256')!=stats['rgb_sha256'] or native.get('depth_sha256')!=stats['depth_sha256']):
+        raise ValueError('native capture, source time or image hash mismatch')
+    filename=f"frame_{frame['frame_id']:06d}.png"
+    if native.get('color_file')!=f'{prefix}/frames/{filename}' or native.get('depth_file')!=f'{prefix}/depth/{filename}':
+        raise ValueError('native image reference mismatch')
+    if (math.dist(position(native['camera_position_cm']),frame['camera_position_cm'])>1e-3
+            or mapping['actual_camera_position_cm']!=native['camera_position_cm']
+            or mapping['actual_camera_rotation_deg']!=native['camera_rotation_deg']
+            or not rotation_matches(native['camera_rotation_deg'],frame['camera_rotation_deg'])):
+        raise ValueError('actual camera transform differs from frozen source replay')
+
+
 def inspect_capture(capture):
     capture=Path(capture)
     index=json.loads((capture/'capture-index.json').read_text(encoding='utf-8-sig'))
@@ -97,21 +118,7 @@ def inspect_capture(capture):
             mapping=poses[pose_index];pose_index+=1
             expected=dict(sequence=name,run_id=episode['run_id'],**frame)
             if any(mapping.get(key)!=value for key,value in expected.items()):raise ValueError('pose-to-source-frame mapping mismatch')
-            if (native.get('captured') is not True or native.get('frame_id')!=frame['frame_id']
-                    or native.get('width')!=320 or native.get('height')!=240
-                    or native.get('fixed_exposure_ev100')!=plan['render_settings']['fixed_exposure_ev100']
-                    or stamp!={key:frame[key] for key in ('frame_id','t_source_sim_s')}
-                    or native.get('rgb_sha256')!=stats['rgb_sha256'] or native.get('depth_sha256')!=stats['depth_sha256']):
-                raise ValueError('native capture, source time or image hash mismatch')
-            filename=f"frame_{frame['frame_id']:06d}.png"
-            if (native.get('color_file')!=f'input/{name}/frames/{filename}'
-                    or native.get('depth_file')!=f'input/{name}/depth/{filename}'):
-                raise ValueError('native image reference mismatch')
-            if (math.dist(position(native['camera_position_cm']),frame['camera_position_cm'])>1e-3
-                    or mapping['actual_camera_position_cm']!=native['camera_position_cm']
-                    or mapping['actual_camera_rotation_deg']!=native['camera_rotation_deg']
-                    or max(abs((a-b+180)%360-180) for a,b in zip(position(native['camera_rotation_deg']),frame['camera_rotation_deg']))>1e-3):
-                raise ValueError('actual camera transform differs from frozen source replay')
+            validate_capture_frame(native,frame,mapping,stamp,stats,f'input/{name}',plan['render_settings']['fixed_exposure_ev100'])
         summaries.append(dict(sequence=name,**summary))
     return dict(evidence_kind='rendered_pose_replay_dataset_contract',input_contract_ready=True,
         plan_sha256=index['plan_sha256'],source_attempt_id=index['source_attempt_id'],sequences=summaries,
