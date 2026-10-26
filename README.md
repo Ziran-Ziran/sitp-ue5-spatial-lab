@@ -44,6 +44,8 @@ RGB-D 位姿回放入口为 `python scripts/render_replay_experiment.py --help`�
 
 `scripts/depth_path_experiment.py` 将冻结的深度局部路径经连续足迹检查后交给真实 CharacterMovement，保留全部规划/检查/执行失败。几何只读隔离深度，重置与动作反馈明确使用引擎位姿；当前是离线观察到实际运动的局部探针，尚未在线采图或重规划。
 
+`scripts/online_depth_experiment.py` 进一步在本次实际运动后停下采 RGB-D，并比较初始路线与每至多一米重新观察/规划。它仍是引擎位姿监督下的几何局部任务，已验收受控观察反馈；没有视觉语义识别、估计定位或连续实时采样。
+
 ## 可选的本地场景
 
 已提供[两项目本地场景接入](docs/local-scenes.md)：共用源素材登记，各自维护独立 UE 实验副本；素材与本机绑定不上传 Git，也不构成训练或导航已验收。

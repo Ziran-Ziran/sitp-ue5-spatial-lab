@@ -111,3 +111,17 @@ python scripts/depth_path_experiment.py run --engine-root $ueRoot --project $sce
 本机单场景一次冻结实验含 48 个源帧、两条件共 96 条记录。水平条件 48 条均因起点未知未执行；三视角有 12 条离线路径，连续 gate 拒绝其中 2 条连接段/路径足迹、2 条起点足迹，批准的 8 条均实际到达，0 个非地面碰撞事件，总实际路长 2660.94 cm。三视角全部帧成功为 8/48；其余 40 条规划或连续检查失败保留。相关源帧不构成 48 个独立搜索任务。
 
 8 条运动的平均执行 wall 为 0.08925 秒，使用加速固定模拟步长，排除 UE 启动、重置、离线采集和规划；不能解释为实时导航延迟。路线由深度估计几何生成，世界坐标转换、重置与动作反馈使用显式引擎位姿。它不使用 NavMesh 路径，但尚未连接移动中采图和重规划，也不等同于椅子/路灯搜索成绩。全部原始证据仍在本地忽略目录。
+
+## 停止观察后的在线重规划
+
+独立入口使用本次 Game world 的实际相机图像，在每段移动后停止并重新观察；不复用原离线图像作在线输入。任务仍从完整源位姿冻结为前方三米探针，位姿/相对目标与动作反馈明确使用引擎监督。
+
+```powershell
+python scripts/online_depth_experiment.py prepare --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --out output/online-prepare-run1
+python scripts/online_depth_experiment.py synthetic --engine-root $ueRoot --project $sceneProject --lock $resourceLock --experiment-map /Game/SpatialLab/OnlineControls_run1 --out output/online-controls-run1
+python scripts/online_depth_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --tasks output/online-prepare-run1/tasks.json --controls output/online-controls-run1 --out output/online-execution-run1
+```
+
+首次受控验证的 10 个回合通过全部 13 项检查，并从保存像素重算动作。平地两条件均到达：一次观察 1 次采图、332.62 cm；重观察 4 次采图、365.28 cm，均无碰撞。固定新墙在行走 50 cm 后启用，一次观察沿旧路线受阻并记录 20 次接触；重观察在第二次采图后因目标区域未知停下，0 次接触。静态墙、墙内出生和零运动控制也分别保留预期结果。这证明受控条件的观察反馈，并不证明城市成功率提高。
+
+回合报告区分 whole-episode、capture、Python bridge wall 和模拟时间。重观察消耗更多图像、进程调用和路径折点，不是等观察预算比较；局部几何任务也不等同于椅子/路灯搜索。具体字段和时钟限制见 data-contract.md。运行仍须实际 GPU 渲染、共享锁和进程树清理；不得加 NullRHI。
