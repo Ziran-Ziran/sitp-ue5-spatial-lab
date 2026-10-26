@@ -281,3 +281,11 @@ python scripts/support_physics_experiment.py audit --project $sceneProject --con
 ```
 
 实际重任务继续附加本节的共享锁和开始/结束截止参数；每次输出及地图必须新建。最后一条仅用 CPU，核对原完整生产者守卫、固定步长参数和全部像素，再重算二十项模型路线及三项参考的实际轨迹/评分。`report.json` 的控制检查与各模型完整分母分别阅读，尤其保留高度合同失败、危险批准、未测量 null 与刻意参考接触。原始私有产物不上传仓库。
+
+原生高度失败的探索性事后诊断只用 CPU，先执行同一完整原始审计，再比较端点与已验证构造地面的位置。它保留原成功/失败、接触、null和所有预算，不启动新运动：
+
+```powershell
+python scripts/support_physics_goal_diagnostics.py --project $sceneProject --controls output/support-route-controls-run1 --run output/support-physics-run1 --out output/support-goal-diagnostics-run1.json
+```
+
+这里的查询是水平前向一米处的构造地面，而非沿坡面弧长一米；端点接近度不能替代原生执行合同成功率。构造真值只进入此评测模块，不进入像素策略。
