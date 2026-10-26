@@ -8,6 +8,7 @@ import time
 import uuid
 import cv2
 from continuous_depth_path import validate_route
+from continuous_grid_planner import VARIANTS,plan_route
 from depth_grid_replay import plan_grid
 from local_depth_grid import GridConfig,multiview_grid,number
 from online_depth_policy import CALIBRATION,inspect_observation,route_prefix,write_observation
@@ -19,7 +20,9 @@ REQUEST_KEYS={'schema_version','attempt_id','run_id','step_id','t_sim_s','input_
 
 def decide(request):
     begun=time.perf_counter()
-    if set(request)!=REQUEST_KEYS or request['schema_version']!=1:raise ValueError('isolated visual category request required')
+    version=request.get('schema_version');keys=REQUEST_KEYS|({'planner_variant'} if version==2 else set())
+    if set(request)!=keys or version not in (1,2) or (version==2 and request['planner_variant'] not in VARIANTS):
+        raise ValueError('isolated versioned visual category request required')
     try:canonical=str(uuid.UUID(request['attempt_id']))
     except (ValueError,TypeError,AttributeError):raise ValueError('canonical attempt required') from None
     if (canonical!=request['attempt_id'] or not re.fullmatch('[A-Za-z0-9_-]+',request['run_id'])
@@ -36,6 +39,7 @@ def decide(request):
     result.update(schema_version=1,evidence_kind='rgb_marker_depth_observed_target_action',selected=selected,
         detection_report=detections,input_files_sha256=hashes,waypoints_right_forward_m=[],relative_yaw_delta_deg=0,
         geometry_goal_right_forward_m=None,geometry=None)
+    if version==2:result.update(schema_version=2,planner_variant=request['planner_variant'])
     if selected is None:
         if request['consecutive_empty_views']<3:result.update(action='rotate',reason='target_category_not_observed',relative_yaw_delta_deg=90)
         else:result.update(action='stop',reason='target_not_observed_after_scan')
@@ -43,12 +47,18 @@ def decide(request):
     else:
         r,f,_=selected['position_right_forward_up_m'];distance=selected['planar_range_m']
         travel=min(3,distance-.9);goal=[r*travel/distance,f*travel/distance]
-        config=GridConfig();grid=multiview_grid(views,CALIBRATION,config);planning=plan_grid(grid,(0,0),goal)
-        gate=(validate_route(grid['states'],config,planning['path_right_forward_m'],start=(0,0),goal=goal,tracking_margin_m=.1)
-              if planning['status']=='path_found' else dict(status='planning_'+planning['status'],waypoints_right_forward_m=[]))
+        config=GridConfig();grid=multiview_grid(views,CALIBRATION,config)
+        if version==1:
+            planning=plan_grid(grid,(0,0),goal)
+            gate=(validate_route(grid['states'],config,planning['path_right_forward_m'],start=(0,0),goal=goal,tracking_margin_m=.1)
+                  if planning['status']=='path_found' else dict(status='planning_'+planning['status'],waypoints_right_forward_m=[]))
+            geometry=dict(planning=planning,continuous_gate=gate,config=asdict(config))
+        else:
+            geometry=plan_route(grid,(0,0),goal,request['planner_variant']);geometry['config']=asdict(config)
+            gate=geometry['continuous_gate']
         route=gate['waypoints_right_forward_m']
         result.update(action='move' if route else 'reject',reason='visible_marker_route' if route else gate['status'],
-            geometry_goal_right_forward_m=goal,geometry=dict(planning=planning,continuous_gate=gate,config=asdict(config)),
+            geometry_goal_right_forward_m=goal,geometry=geometry,
             waypoints_right_forward_m=route_prefix(route,1) if route else [])
     if any(file_hash(directory/name)!=sha for name,sha in hashes.items()):raise ValueError('visual pixels changed during decision')
     result['perception_and_planning_wall_s']=time.perf_counter()-begun

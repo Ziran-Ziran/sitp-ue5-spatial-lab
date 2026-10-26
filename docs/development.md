@@ -161,3 +161,14 @@ python scripts/visual_marker_experiment.py --engine-root $ueRoot --project $scen
 ```
 
 入口创建自己的中性地面、unlit 色标与遮挡墙，保存独立 truth 后执行固定全部任务。truth 的路径不会传入 UE 游戏或数值 worker；其哈希由外层任务守卫保护，评分器只在结束后读取。日志、图像、地图、轨迹和 truth 均保留忽略目录。合成 CPU 用例、真实控制场景与城市研究结果须分别报告。
+
+同一当前构建可比较预先固定的三种规划器，各使用完整十二项任务和新地图/输出，参数与预算保持不变：
+
+```powershell
+python scripts/visual_marker_experiment.py --engine-root $ueRoot --project $sceneProject --lock $resourceLock --geometry-controls output/online-controls-run1 --planner-variant legacy_centers --experiment-map /Game/SpatialLab/MarkerLegacy_run1 --out output/marker-legacy-run1
+python scripts/visual_marker_experiment.py --engine-root $ueRoot --project $sceneProject --lock $resourceLock --geometry-controls output/online-controls-run1 --planner-variant continuous_square --experiment-map /Game/SpatialLab/MarkerSquare_run1 --out output/marker-square-run1
+python scripts/visual_marker_experiment.py --engine-root $ueRoot --project $sceneProject --lock $resourceLock --geometry-controls output/online-controls-run1 --planner-variant continuous_square_shortcuts --experiment-map /Game/SpatialLab/MarkerShortcuts_run1 --out output/marker-shortcuts-run1
+python scripts/compare_visual_marker_runs.py --project $sceneProject --runs output/marker-legacy-run1 output/marker-square-run1 output/marker-shortcuts-run1 --out output/marker-comparison-run1.json
+```
+
+比较器只使用 CPU，重新核对全部实际像素/动作/独立真值、原 job/status 快照、唯一实际生产参数、当前源码闭包和共同 DLL/场景生成器；旧构建或更改后的策略不能直接冒充当前比较。原地图、输入和失败结果不覆盖。预算失败依旧进入分母；离线连续路线长度与实际三维路长分别保存。

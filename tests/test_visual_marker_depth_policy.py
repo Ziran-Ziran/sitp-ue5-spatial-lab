@@ -58,3 +58,14 @@ class MarkerDepthPolicyTests(unittest.TestCase):
             request=copy.deepcopy(self.request);request[key]={}
             with self.subTest(key=key),self.assertRaises(ValueError):decide(request)
         with self.assertRaises(ValueError):decide(dict(self.request,category='chair'))
+
+    def test_schema_two_requires_explicit_variant_and_preserves_schema_one(self):
+        self.marker((0,0,255),2000)
+        legacy=decide(self.request)
+        self.assertNotIn('planner_variant',legacy)
+        for variant in ('legacy_centers','continuous_square','continuous_square_shortcuts'):
+            answer=decide(dict(self.request,schema_version=2,planner_variant=variant))
+            self.assertEqual(answer['schema_version'],2);self.assertEqual(answer['planner_variant'],variant)
+            self.assertEqual(answer['geometry']['planner_variant'],variant)
+        with self.assertRaises(ValueError):decide(dict(self.request,schema_version=2))
+        with self.assertRaises(ValueError):decide(dict(self.request,planner_variant='legacy_centers'))

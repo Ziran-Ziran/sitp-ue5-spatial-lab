@@ -66,6 +66,16 @@ class VisualMarkerReportTests(unittest.TestCase):
         truth=copy.deepcopy(self.truth);truth['entities'][0]['position_cm']=[3000,-200,100]
         self.assertEqual(evaluate(self.tasks,self.record,self.root,truth)['overall']['successes'],0)
 
+    def test_version_two_candidate_binds_request_variant_to_task(self):
+        self.tasks=build_tasks('/Game/SpatialLab/Markers','a'*64,planner_variant='continuous_square')
+        self.task=self.tasks['runs'][8];event=self.raw['actions'][0]
+        event['request'].update(schema_version=2,planner_variant='continuous_square');event['response']=decide(event['request'])
+        folder=Path(event['folder'])
+        for name,value in [('request.json',event['request']),('response.json',event['response'])]:(folder/name).write_text(json.dumps(value))
+        self.assertTrue(self.audit()['candidate_reached'])
+        self.task=dict(self.task,planner_variant='legacy_centers')
+        with self.assertRaises(ValueError):self.audit()
+
     def test_wall_budget_can_preempt_a_fresh_candidate_without_fabricating_success(self):
         self.raw.update(status='wall_timeout',wall_s=60.001)
         score=self.audit()
