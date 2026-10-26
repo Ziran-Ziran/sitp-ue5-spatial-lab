@@ -1,4 +1,4 @@
-# 本地引擎 oracle 导航基线
+# 本地导航与语义搜索基线
 
 入口 `scripts/navigation_experiment.py` 将独立静态场景推进为固定目标任务，提供冻结清单、目标选择、引擎路径、Game-world 移动和独立评分。引擎名称、位置和 NavMesh 都是明确的特权信息；当前没有视觉语义识别，也没有从 RGB-D 估计可通行地图。
 
@@ -58,3 +58,22 @@ python ue5/tools/semantic_goal_replay.py replay --goals output/goals-only-run1.j
 回放比较当前帧与 5 秒 TTL 记忆的目标可用率，不读全场景实体表或未来帧。空帧、零帧失败和缺失回合单独报告。范围、眼高、三个包围盒射线样本及引擎标签均显式声明；完整字段与时钟见数据合同。这种保守采样会漏掉未被射线命中的物体。已有到达回合也可能没有目标类别观测，应保留并诊断，不能按终点真值选择参数。
 
 路线仍由原有全局引擎 oracle 规划；离线选择不会改变角色运动。此结果不能表示观测驱动导航、视觉语义识别或记忆改善了导航成功率。`inspect_visibility_failures.py` 只在事后读取目标与几何作诊断，其输出不能作为策略输入。
+
+## 观测驱动目标搜索
+
+独立入口 `scripts/semantic_search_experiment.py` 使用同一传感器，令当前观测/记忆影响实际目标与移动；未发现目标时沿固定几何探索点搜索。需要场景启用 PythonScriptPlugin；同步执行项目内的 CPU 策略，不调用模型或外部服务。地图、构建和在线 Python 源码均在重任务锁内核验哈希。
+
+```powershell
+# 同步编译并创建仅依赖内置立方体的闭环控制案例，使用新地图/输出。
+python scripts/semantic_search_experiment.py synthetic --engine-root $ueRoot --project $sceneProject --lock $resourceLock --experiment-map /Game/SpatialLab/SearchControls_run1 --out output/search-controls-run1
+
+# 用既有冻结任务的起点生成固定几何网格，输出不含目标 catalog 的 missions。
+python scripts/semantic_search_experiment.py prepare --engine-root $ueRoot --project $sceneProject --lock $resourceLock --tasks output/nav-prepare-run1/tasks.json --out output/search-prepare-run1
+
+# 引擎只收到 missions；原标注在引擎结束后单独评分。
+python scripts/semantic_search_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --missions output/search-prepare-run1/missions.json --truth output/nav-prepare-run1/tasks.json --out output/search-execution-run1
+```
+
+合成控制包括：可见椅子到达、先探索绕墙再发现路灯并到达、首帧已在目标范围内的零移动到达、无效出生点和不允许探索时的预期失败。逐帧和时序记忆两种策略都执行。控制案例通过不等于城市任务全部成功。
+
+报告保留所有回合的成功/失败、碰撞、路长、模拟与 wall 时间、移动请求数以及动作审计。实际城市回合可能因观测漏报、不可达目标或探索范围耗尽失败；两种记忆策略也可能结果相同。不得根据真值调参、删回合或把回放目标可用率写成导航收益。当前路径和探索点仍使用引擎几何，未实现视觉语义或观测估计的可通行地图。

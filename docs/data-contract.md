@@ -29,10 +29,22 @@ experiments 用按 scene 的 train/validation/test 互斥标识；不能从同�
 
 `--record-observations` 在 Game world 启用 `observations.jsonl`。条件必须为 `engine_local_visibility_supervision`，语义来源 `engine_actor_label`，位姿来源 `engine_ground_truth`，路线来源 `global_engine_oracle_selected_routes`。这是碰撞几何监督，没有渲染图像、像素分类或检测置信度；观察与到达判据也不等价。
 
-- 首行为 stream：完整地图、冻结清单哈希、同次原生执行生成的 UUID `attempt_id`、厘米坐标系和传感器参数。执行 JSON 使用同一 attempt；关联检查还核对有帧回合的起终脚底位置（5 cm 内）、初始模拟时刻 0 与末帧/执行时长（误差 1e-4 秒内）。`initial_position_cm` 记录生成后自动贴地的实际脚底，独立于任务计划起点和轨迹第一个计划点。不同尝试不能混用。旧的无 attempt 流不由此合同接受，原始文件不改写。
+- 首行为 stream：完整地图、冻结清单哈希、同次原生执行生成的 UUID `attempt_id`、厘米坐标系和传感器参数。执行 JSON 使用同一 attempt；关联检查还核对有帧回合的起终脚底位置（5 cm 内）、初始模拟时刻 0 与末帧/执行时长（误差 1e-4 秒内）。`initial_position_cm` 记录控制器接管并自动贴地后的实际脚底，独立于任务计划起点；轨迹与距离累计也从实际脚底开始，排除初始化贴地位移。早期本地产物曾以计划点作为轨迹首点，原始文件保留，不与修正后的路长混用。不同尝试不能混用。旧的无 attempt 流不由此合同接受，原始文件不改写。
 - 固定全景范围 2000 cm，按眼点到 Actor 原点距离筛选，眼点在脚底上方 150 cm。每 0.1 模拟秒采样，另强制首末帧；同一模拟时刻不重复采样。向 Actor 包围盒中心及上下半个 Z extent 共三个点发复杂碰撞射线；首个阻挡命中必须是该 Actor。射线落入空隙不算检测，因此细杆、空心或碰撞不完整的物体可能漏报。它不是相机视锥、像素覆盖或真实可见性真值。
 - episode_start/end 包含 run_id；未生成代理的失败也保留边界和零帧。frame 包含连续 frame_id、回合内 `t_sim_s`、从记录器启动起单调的 `t_monotonic_s`、脚底和眼点、当帧 entities。模拟时间每回合重置；wall 时钟不重置，也不等于实时采样频率。
 - 每个 entity 仅有 entity_id、chair/lamp 类别、引擎原点 position_cm 和命中样本数 1..3。流中没有全 catalog、真值目标、未来帧或未观察实体。严格字段白名单拒绝额外特权字段；读取器逐条消费，核验连续帧号、时钟、范围、回合和最终计数/footer。
 - 策略的 goal-only JSON 仅提供地图、清单哈希、run_id 和目标类别；清单导出与回放是分开的命令，回放不接收原始任务 catalog、起点或坐标。goal-only 可跨同一冻结任务的多次 attempt 复用；回放报告保留当前 attempt。
 - `frame_only` 只保留当前观测；`temporal_memory` 默认 TTL 5 模拟秒，可预先显式指定 0..120 秒，边界包含到期时刻。每回合独立清空；按当前脚底至已观察实体原点的距离选择，平局按 ID。所有位置和类别均是明确的引擎监督，没有从未来补写历史记忆。
 - 报告目标可用帧比例、首次目标观测、选择变化、策略 CPU wall 耗时和失败原因；没有观测的回合仍在回合分母中。路线受全局 oracle 偏置，回放只衡量选择/记忆可用性，不能将其转写成反事实导航成功率、路长收益或视觉语义准确率。
+
+## 观测驱动目标搜索（schema_version 1）
+
+`semantic_search_experiment.py` 将 `semantic_search_policy.py` 同步接入 Game world。条件仍为 `engine_local_visibility_supervision`；观测 stream 的路线来源改为 `observation_dependent_engine_navmesh_geometry`。传感器仍使用相同的三个包围盒射线样本，没有因终点真值改变采样参数。
+
+- mission bundle 仅包含完整地图、来源标注清单的哈希、几何来源声明和 missions，并独立计算 `manifest_sha256`（排序键、紧凑 UTF-8 JSON，排除哈希字段自身）。每条 mission 的白名单为 run_id、category、policy、start_cm、时间/路长/到达/成功预算和 exploration_points_cm。没有目标实体、真实目标坐标或 oracle 计划。独立评分核对原标注 episodes × 两种策略的完整集合及类别、起点、预算，重算哈希不能合法化删回合。
+- 城市探索点只从导出的起点查询生成：X/Y 偏移各为 -1500、-750、0、750、1500 cm，排除中心；NavMesh 投影范围 150/150/100 cm，拒绝高度变化超过 100 cm 或 Pawn 胶囊受阻点。没有按目标、路径连通性或评测结果筛选。几何来源是引擎 NavMesh，不是观测估计地图。
+- 策略接收当前帧及对应 action_id 的 movement feedback（none/moving/arrived/rejected/blocked/cancelled），不接收世界 API。`frame_only` TTL 为 0，`temporal_memory` 为 5 模拟秒。最近的已观察目标可打断探索；目标失效则取消；移动失败的实体在本回合不再尝试。未发现目标时按当前距离及索引选择尚未尝试的固定探索点，每点只尝试一次，耗尽则保留 `exploration_exhausted`。
+- 观察目标的移动点为其原点沿当前观察者方向退让成功半径的 0.6 倍，避免要求角色站到物体原点。它是预先固定的规则，没有读取标注接近点。是否真正可达仍由引擎路径反馈决定，部分路径不允许作为成功路径。实际观测目标在成功半径内时输出 `candidate_reached`，供事后独立核验。
+- 原生执行保留相同胶囊、速度、步长、碰撞定义、模拟时间/路长预算和 120 秒 wall 上限，策略另有 64 次命令预算。每个 episode 保存全轨迹和逐帧 policy_trace（frame_id、t_sim_s、输入 feedback、输出 action、桥接 wall 时间）。`navigation_requests` 统计 MoveTo 调用，不能当作内部 NavMesh 查询数，不能与 oracle 的显式 path_queries 声称等算力。
+- 评分仅接受 `ue_game_world_observation_dependent_search` 的实际执行和对应路线声明。成功必须为 `candidate_reached`、观测来源与记忆时效有效、全动作能逐帧重现，且独立标注中的类别和实际终点距离通过。oracle 的 arrived/success 状态不能绕过搜索来源检查。失败、零帧及缺失执行进入分母；未知碰撞不当作零。模拟与 wall 时间分开，episode wall 包含同步 Python 桥和移动，排除引擎启动。
+- 原生模块和两个在线 Python 源文件的哈希在拿到共享锁后检查；原生构建记录源码与 DLL 对应关系。响应文件每帧独占创建，校验 attempt/run/frame 后删除；旧响应或 Python 异常使回合失败，不沿用上一次动作。

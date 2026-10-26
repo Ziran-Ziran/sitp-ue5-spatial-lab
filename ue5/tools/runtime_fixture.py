@@ -28,6 +28,7 @@ if __name__=='__main__':
         shapes.extend([('Area_MdProps_Chair_SyntheticVisible',[-700,-500,50],[1,1,1]),
                        ('Area_MdProps_Lamp13_SyntheticOccluded',[700,-300,50],[1,1,1])])
     controls={}
+    annotations=[]
     for label,xyz,scale in shapes:
         actor=subsystem.spawn_actor_from_class(unreal.StaticMeshActor,unreal.Vector(*xyz))
         actor.set_actor_label(label)
@@ -36,6 +37,9 @@ if __name__=='__main__':
         actor.set_actor_scale3d(unreal.Vector(*scale))
         if label.startswith('Area_MdProps_Chair'): controls['visible_chair']=actor.get_name()
         if label.startswith('Area_MdProps_Lamp13_'): controls['occluded_lamp']=actor.get_name()
+        if label.startswith('Area_MdProps_'):
+            annotations.append(dict(entity_id=actor.get_name(),category='chair' if 'Chair' in label else 'lamp',
+                                    location_cm=[float(x) for x in xyz]))
     world.get_world_settings().set_editor_property('default_game_mode',unreal.SpatialLabGameMode)
     report=json.loads(unreal.SpatialLabNavigation.build_oracle_navigation(
         world,unreal.Vector(0,0,100),unreal.Vector(1000,1000,500),34,176))
@@ -43,7 +47,8 @@ if __name__=='__main__':
         raise AssertionError('synthetic runtime fixture has empty NavMesh')
     if not unreal.EditorLoadingAndSavingUtils.save_map(world,args.map):
         raise RuntimeError('cannot save fixture map')
-    args.out.write_text(json.dumps(dict(map=args.map,navigation=report,semantic_controls=controls),indent=2),encoding='utf-8')
+    args.out.write_text(json.dumps(dict(map=args.map,navigation=report,semantic_controls=controls,
+                                      semantic_annotations=annotations),indent=2),encoding='utf-8')
     if args.plan:
         rows=[]
         for name,start,goal in [('detour',[-700,0,10],[700,0,10]),

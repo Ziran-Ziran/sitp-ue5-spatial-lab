@@ -26,7 +26,8 @@ void FSpatialLabVisibilityRecorder::Write(const TSharedRef<FJsonObject>& Record)
     Healthy = !Archive->IsError();
 }
 
-bool FSpatialLabVisibilityRecorder::Open(UWorld* InWorld, const FString& Path, const FString& ManifestHash, const FString& AttemptId)
+bool FSpatialLabVisibilityRecorder::Open(UWorld* InWorld, const FString& Path, const FString& ManifestHash,
+                                        const FString& AttemptId, const FString& RouteSource)
 {
 #if WITH_EDITOR
     if (!InWorld || !InWorld->IsGameWorld() || IFileManager::Get().FileExists(*Path)) return false;
@@ -57,7 +58,7 @@ bool FSpatialLabVisibilityRecorder::Open(UWorld* InWorld, const FString& Path, c
     Header->SetStringField(TEXT("condition"),TEXT("engine_local_visibility_supervision"));
     Header->SetStringField(TEXT("semantic_source"),TEXT("engine_actor_label"));
     Header->SetStringField(TEXT("pose_source"),TEXT("engine_ground_truth"));
-    Header->SetStringField(TEXT("route_source"),TEXT("global_engine_oracle_selected_routes"));
+    Header->SetStringField(TEXT("route_source"),RouteSource);
     Header->SetStringField(TEXT("visibility_method"),TEXT("panoramic_range_three_bbox_samples_first_hit_target"));
     Header->SetStringField(TEXT("units"),TEXT("centimeters"));
     Header->SetStringField(TEXT("coordinate_system"),TEXT("UE left-handed X-forward Y-right Z-up"));
@@ -80,6 +81,7 @@ void FSpatialLabVisibilityRecorder::BeginEpisode(const FString& Id,double SimSta
     EpisodeStart = SimStart;
     LastSim = -1;
     FrameIndex = 0;
+    LatestFrame.Reset();
     ++Episodes;
     TSharedRef<FJsonObject> Record = MakeShared<FJsonObject>();
     Record->SetStringField(TEXT("record_type"),TEXT("episode_start"));
@@ -132,6 +134,7 @@ void FSpatialLabVisibilityRecorder::Sample(AActor* Observer,FVector Feet,bool Fo
     Record->SetField(TEXT("sensor_eye_cm"),VectorValue(Eye));
     Record->SetArrayField(TEXT("entities"),Entities);
     Write(Record);
+    LatestFrame = Record;
     LastSim = Sim;
     ++TotalFrames;
 }
