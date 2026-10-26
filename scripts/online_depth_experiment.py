@@ -20,13 +20,13 @@ from online_depth_tasks import build_tasks,build_controls,validate_tasks
 from online_depth_report import evaluate
 
 
-def policy_sources():
+def policy_sources(entry='online_depth_policy'):
     """Local static import closure, including imports inside called functions.
 
     Post-run scoring can improve without invalidating unchanged physical worker
     evidence. The worker's complete local Python import closure must still match.
     """
-    directory=ROOT/'ue5/tools';pending=['online_depth_policy'];found=set()
+    directory=ROOT/'ue5/tools';pending=[entry];found=set()
     while pending:
         name=pending.pop();path=directory/(name+'.py')
         if path in found or not path.is_file():continue

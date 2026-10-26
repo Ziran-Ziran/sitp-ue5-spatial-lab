@@ -66,7 +66,8 @@ void ASpatialLabOnlineDepthRunner::BeginPlay()
 {
     Super::BeginPlay();FString Path,Text;
     const TArray<TSharedPtr<FJsonValue>>* Rows=nullptr;
-    bool Valid=FParse::Value(FCommandLine::Get(),TEXT("SITPOnlineDepth="),Path)
+    VisualTask=FParse::Value(FCommandLine::Get(),TEXT("SITPVisualMarker="),Path);
+    bool Valid=(VisualTask || FParse::Value(FCommandLine::Get(),TEXT("SITPOnlineDepth="),Path))
         && FParse::Value(FCommandLine::Get(),TEXT("SITPResult="),ResultPath)
         && FParse::Value(FCommandLine::Get(),TEXT("SITPOnlineOutput="),OutputDirectory)
         && FParse::Value(FCommandLine::Get(),TEXT("SITPTools="),ToolsDirectory)
@@ -76,16 +77,16 @@ void ASpatialLabOnlineDepthRunner::BeginPlay()
         && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),Input) && Input.IsValid();
     if (Valid)
     {
-        Valid=Input->GetStringField(TEXT("condition"))==TEXT("online_stopped_depth_geometry_pose_supervision")
+        Valid=Input->GetStringField(TEXT("condition"))==(VisualTask?TEXT("rgbd_color_marker_target_search_pose_actuation_supervision"):TEXT("online_stopped_depth_geometry_pose_supervision"))
             && Input->GetStringField(TEXT("map"))==GetWorld()->GetOutermost()->GetName()
             && Input->TryGetArrayField(TEXT("runs"),Rows) && Rows && Rows->Num()>0 && Rows->Num()<=200;
         if (Valid) for (auto& Value:*Rows)
         {
             auto Row=Value->AsObject();FString Mode;
             if (!Row.IsValid() || !Row->TryGetStringField(TEXT("mode"),Mode)
-                || (Mode!=TEXT("initial_sweep_once") && Mode!=TEXT("receding_sweep"))
+                || (VisualTask ? Mode!=TEXT("marker_receding") : (Mode!=TEXT("initial_sweep_once") && Mode!=TEXT("receding_sweep")))
                 || Vector(Row->GetArrayField(TEXT("start_cm"))).ContainsNaN()
-                || Vector(Row->GetArrayField(TEXT("goal_cm"))).ContainsNaN()
+                || (!VisualTask && Vector(Row->GetArrayField(TEXT("goal_cm"))).ContainsNaN())
                 || !FMath::IsFinite(Row->GetNumberField(TEXT("heading_deg")))) Valid=false;
         }
     }
@@ -94,7 +95,14 @@ void ASpatialLabOnlineDepthRunner::BeginPlay()
     if (!Extended) { Done=true;FPlatformMisc::RequestExitWithStatus(false,2);return; }
     Extended->Set(1,ECVF_SetByCode);
     if (!IFileManager::Get().MakeDirectory(*OutputDirectory,true)) { Done=true;FPlatformMisc::RequestExitWithStatus(false,3);return; }
-    for (TActorIterator<AActor> It(GetWorld());It;++It) if (It->ActorHasTag(TEXT("SpatialLabInterventionWall"))) InterventionWall=*It;
+    for (TActorIterator<AActor> It(GetWorld());It;++It)
+    {
+        if (It->ActorHasTag(TEXT("SpatialLabInterventionWall"))) InterventionWall=*It;
+        // Fixture interventions only. No actor names, positions or labels are
+        // read for perception/goal selection or included in worker requests.
+        if (It->ActorHasTag(TEXT("SpatialLabMarkerRed"))) RedMarkers.Add(*It);
+        if (It->ActorHasTag(TEXT("SpatialLabMarkerBlue"))) BlueMarkers.Add(*It);
+    }
     Runs=*Rows;AttemptId=FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphens).ToLower();
     NextStart=GetWorld()->GetTimeSeconds()+1;Save(false);
 }
@@ -111,14 +119,29 @@ void ASpatialLabOnlineDepthRunner::BeginNext()
         Done=true;Save(true);UE_LOG(LogTemp,Display,TEXT("SITP_ONLINE_DEPTH_COMPLETE runs=%d"),Results.Num());
         FPlatformMisc::RequestExitWithStatus(false,0);return;
     }
-    Current=Runs[Index]->AsObject();RequestedStart=Vector(Current->GetArrayField(TEXT("start_cm")));Goal=Vector(Current->GetArrayField(TEXT("goal_cm")));
+    Current=Runs[Index]->AsObject();RequestedStart=Vector(Current->GetArrayField(TEXT("start_cm")));
+    Goal=VisualTask?RequestedStart:Vector(Current->GetArrayField(TEXT("goal_cm")));
+    CurrentHeading=Current->GetNumberField(TEXT("heading_deg"));EmptyViews=0;PendingObservation=false;
     Previous=InitialFeet=RequestedStart;StartedSim=GetWorld()->GetTimeSeconds();StartedWall=FPlatformTime::Seconds();
     ResetWall=StartedWall;SpawnedSim=StartedSim;Measured=false;Cursor=0;Collisions=CaptureCount=0;WalkedCm=MaxTracking=0;
     ResetXY=ResetZ=CaptureWall=PolicyWall=0;InterventionSim=-1;LastCollision=-1;
     Trajectory.Empty();Actions.Empty();WaypointEvents.Empty();Waypoints.Empty();
     if (InterventionWall) { InterventionWall->SetActorEnableCollision(false);InterventionWall->SetActorHiddenInGame(true); }
-    if (Current->GetStringField(TEXT("intervention"))==TEXT("wall_after_50cm") && !InterventionWall)
+    if (!VisualTask && Current->GetStringField(TEXT("intervention"))==TEXT("wall_after_50cm") && !InterventionWall)
     { Finish(TEXT("intervention_missing"));return; }
+    if (VisualTask)
+    {
+        const FString Case=Current->GetStringField(TEXT("environment_case"));
+        if (Case!=TEXT("all_markers") && Case!=TEXT("red_hidden") && Case!=TEXT("wall_on")) { Finish(TEXT("invalid_fixture_case"));return; }
+        for (AActor* Marker:RedMarkers) if (IsValid(Marker))
+        { Marker->SetActorHiddenInGame(Case==TEXT("red_hidden"));Marker->SetActorEnableCollision(Case!=TEXT("red_hidden")); }
+        for (AActor* Marker:BlueMarkers) if (IsValid(Marker)) { Marker->SetActorHiddenInGame(false);Marker->SetActorEnableCollision(true); }
+        if (Case==TEXT("wall_on"))
+        {
+            if (!InterventionWall) { Finish(TEXT("intervention_missing"));return; }
+            InterventionWall->SetActorEnableCollision(true);InterventionWall->SetActorHiddenInGame(false);
+        }
+    }
     const FVector Center=RequestedStart+FVector(0,0,90);const auto Shape=FCollisionShape::MakeCapsule(34,88);
     FHitResult Hit;
     const bool Blocked=GetWorld()->OverlapBlockingTestByChannel(Center,FQuat::Identity,ECC_Pawn,Shape)
@@ -149,14 +172,15 @@ void ASpatialLabOnlineDepthRunner::ObserveAndPlan()
 {
     Agent->GetCharacterMovement()->StopMovementImmediately();
     const FVector Position=Feet();
-    if (FVector::Dist2D(Position,Goal)<=10 && FMath::Abs(Position.Z-Goal.Z)<=20) { Finish(TEXT("arrived"));return; }
-    if (CaptureCount>=8) { Finish(TEXT("capture_budget"));return; }
+    if (!VisualTask && FVector::Dist2D(Position,Goal)<=10 && FMath::Abs(Position.Z-Goal.Z)<=20) { Finish(TEXT("arrived"));return; }
+    if (CaptureCount>=(VisualTask?12:8)) { Finish(TEXT("capture_budget"));return; }
     const int32 Step=CaptureCount++;const double Sim=GetWorld()->GetTimeSeconds()-StartedSim;
     const FString Folder=OutputDirectory/FString::Printf(TEXT("run_%03d/step_%03d"),Index,Step);
     const FString Pixels=Folder/TEXT("input"),RequestPath=Folder/TEXT("request.json"),ResponsePath=Folder/TEXT("response.json");
     TSharedRef<FJsonObject> Event=MakeShared<FJsonObject>();Event->SetNumberField(TEXT("step_id"),Step);
     Event->SetNumberField(TEXT("t_sim_s"),Sim);Event->SetField(TEXT("feet_cm"),JsonVector(Position));Event->SetStringField(TEXT("folder"),Folder);
-    const double Heading=Current->GetNumberField(TEXT("heading_deg"));const FVector Eye=Position+FVector(0,0,150);
+    const double Heading=CurrentHeading;Event->SetNumberField(TEXT("heading_deg"),Heading);
+    const FVector Eye=Position+FVector(0,0,150);
     TArray<TSharedPtr<FJsonValue>> Captures;const TCHAR* Names[]={TEXT("level"),TEXT("down45"),TEXT("nadir")};const double Pitches[]={0,45,90};
     bool Captured=true;const double CaptureStarted=FPlatformTime::Seconds();
     for (int32 View=0;View<3;++View)
@@ -176,15 +200,24 @@ void ASpatialLabOnlineDepthRunner::ObserveAndPlan()
     TSharedRef<FJsonObject> Request=MakeShared<FJsonObject>();Request->SetNumberField(TEXT("schema_version"),1);
     Request->SetStringField(TEXT("attempt_id"),AttemptId);Request->SetStringField(TEXT("run_id"),Current->GetStringField(TEXT("run_id")));
     Request->SetNumberField(TEXT("step_id"),Step);Request->SetNumberField(TEXT("t_sim_s"),Sim);
-    Request->SetStringField(TEXT("input_dir"),Pixels);Request->SetStringField(TEXT("mode"),Current->GetStringField(TEXT("mode")));
-    Request->SetArrayField(TEXT("goal_right_forward_m"),{MakeShared<FJsonValueNumber>(-Delta.X*FMath::Sin(Angle)+Delta.Y*FMath::Cos(Angle)),
-        MakeShared<FJsonValueNumber>(Delta.X*FMath::Cos(Angle)+Delta.Y*FMath::Sin(Angle))});
+    Request->SetStringField(TEXT("input_dir"),Pixels);
+    if (VisualTask)
+    {
+        Request->SetStringField(TEXT("category"),Current->GetStringField(TEXT("category")));
+        Request->SetNumberField(TEXT("consecutive_empty_views"),EmptyViews);
+    }
+    else
+    {
+        Request->SetStringField(TEXT("mode"),Current->GetStringField(TEXT("mode")));
+        Request->SetArrayField(TEXT("goal_right_forward_m"),{MakeShared<FJsonValueNumber>(-Delta.X*FMath::Sin(Angle)+Delta.Y*FMath::Cos(Angle)),
+            MakeShared<FJsonValueNumber>(Delta.X*FMath::Cos(Angle)+Delta.Y*FMath::Sin(Angle))});
+    }
     Event->SetObjectField(TEXT("request"),Request);
     if (!FFileHelper::SaveStringToFile(Json(Request),*RequestPath)) { Finish(TEXT("request_io_failed"));return; }
     // Embedded Python only launches the isolated numerical worker; no unreal or
     // evaluation state enters its request. Parent Job Object owns the child tree.
     const FString Command=TEXT("import subprocess\n_sitp_depth_child=subprocess.run([")+Quote(PythonExecutable)+TEXT(",")
-        +Quote(ToolsDirectory/TEXT("online_depth_policy.py"))+TEXT(",'--request',")+Quote(RequestPath)+TEXT(",'--out',")
+        +Quote(ToolsDirectory/(VisualTask?TEXT("visual_marker_depth_policy.py"):TEXT("online_depth_policy.py")))+TEXT(",'--request',")+Quote(RequestPath)+TEXT(",'--out',")
         +Quote(ResponsePath)+TEXT(",'--prepare-observation'],capture_output=True,text=True,timeout=20)\n")
         +TEXT("assert _sitp_depth_child.returncode==0, _sitp_depth_child.stderr[-4000:]");
     const double PolicyStarted=FPlatformTime::Seconds();FString ResponseText;TSharedPtr<FJsonObject> Response;
@@ -197,6 +230,19 @@ void ASpatialLabOnlineDepthRunner::ObserveAndPlan()
     { Event->SetStringField(TEXT("status"),TEXT("policy_bridge_failed"));Actions.Add(MakeShared<FJsonValueObject>(Event));Finish(TEXT("policy_bridge_failed"));return; }
     Event->SetObjectField(TEXT("response"),Response);Event->SetStringField(TEXT("status"),TEXT("complete"));Actions.Add(MakeShared<FJsonValueObject>(Event));
     if (FPlatformTime::Seconds()-StartedWall>=60) { Finish(TEXT("wall_timeout"));return; }
+    if (VisualTask)
+    {
+        const FString Action=Response->GetStringField(TEXT("action"));
+        if (Action==TEXT("candidate_reached")) { Finish(TEXT("candidate_reached"));return; }
+        if (Action==TEXT("stop")) { Finish(Response->GetStringField(TEXT("reason")));return; }
+        if (Action==TEXT("rotate"))
+        {
+            if (Response->GetNumberField(TEXT("relative_yaw_delta_deg"))!=90 || EmptyViews>=3) { Finish(TEXT("invalid_visual_scan"));return; }
+            ++EmptyViews;CurrentHeading=FMath::UnwindDegrees(CurrentHeading+90);PendingObservation=true;
+            return;
+        }
+        EmptyViews=0;
+    }
     if (Response->GetStringField(TEXT("action"))!=TEXT("move")) { Finish(TEXT("geometry_")+Response->GetStringField(TEXT("reason")));return; }
     Waypoints.Empty();Cursor=0;RouteStart=Position;
     const auto& Local=Response->GetArrayField(TEXT("waypoints_right_forward_m"));
@@ -211,7 +257,7 @@ void ASpatialLabOnlineDepthRunner::ObserveAndPlan()
         Length+=FVector::Distance(Prior,World);Prior=World;Waypoints.Add(World);
     }
     if (FVector::Dist2D(Waypoints[0],Position)>.001 || Length>2000
-        || (Current->GetStringField(TEXT("mode"))==TEXT("receding_sweep") && Length>100.001)) { Finish(TEXT("invalid_policy_route"));return; }
+        || ((VisualTask || Current->GetStringField(TEXT("mode"))==TEXT("receding_sweep")) && Length>100.001)) { Finish(TEXT("invalid_policy_route"));return; }
     LastProgress=GetWorld()->GetTimeSeconds();BestDistance=TNumericLimits<double>::Max();Drive();
 }
 
@@ -222,12 +268,13 @@ void ASpatialLabOnlineDepthRunner::Tick(float DeltaSeconds)
     if (!Active) { if (GetWorld()->GetTimeSeconds()>=NextStart) BeginNext();return; }
     if (!IsValid(Agent) || Feet().ContainsNaN()) { Finish(TEXT("agent_lost"));return; }
     const FVector P=Feet();WalkedCm+=FVector::Distance(Previous,P);Previous=P;Trajectory.Add(JsonVector(P));
-    if (InterventionWall && InterventionSim<0 && Current->GetStringField(TEXT("intervention"))==TEXT("wall_after_50cm") && WalkedCm>=50)
+    if (!VisualTask && InterventionWall && InterventionSim<0 && Current->GetStringField(TEXT("intervention"))==TEXT("wall_after_50cm") && WalkedCm>=50)
     { InterventionWall->SetActorHiddenInGame(false);InterventionWall->SetActorEnableCollision(true);InterventionSim=GetWorld()->GetTimeSeconds()-StartedSim; }
     if (WalkedCm>2000) Finish(TEXT("path_budget"));
     else if (GetWorld()->GetTimeSeconds()-StartedSim>=30) Finish(TEXT("timeout"));
     else if (FPlatformTime::Seconds()-StartedWall>=60) Finish(TEXT("wall_timeout"));
     else if (FMath::Abs(P.Z-InitialFeet.Z)>50) Finish(TEXT("vertical_excursion"));
+    else if (PendingObservation) { PendingObservation=false;ObserveAndPlan(); }
     else Drive();
 }
 
@@ -243,7 +290,8 @@ void ASpatialLabOnlineDepthRunner::Drive()
     }
     if (Cursor==Waypoints.Num())
     {
-        if (FVector::Dist2D(P,Goal)<=10 && FMath::Abs(P.Z-Goal.Z)<=20) Finish(TEXT("arrived"));
+        if (VisualTask) { PendingObservation=true;Waypoints.Empty();Cursor=0; }
+        else if (FVector::Dist2D(P,Goal)<=10 && FMath::Abs(P.Z-Goal.Z)<=20) Finish(TEXT("arrived"));
         else if (Current->GetStringField(TEXT("mode"))==TEXT("receding_sweep")) ObserveAndPlan();
         else Finish(TEXT("route_exhausted"));return;
     }
@@ -283,7 +331,7 @@ void ASpatialLabOnlineDepthRunner::Finish(const FString& Status)
     TSharedRef<FJsonObject> Row=MakeShared<FJsonObject>();Row->SetStringField(TEXT("run_id"),Current->GetStringField(TEXT("run_id")));
     Row->SetObjectField(TEXT("input"),Current);Row->SetObjectField(TEXT("execution"),Execution);Results.Add(MakeShared<FJsonValueObject>(Row));
     UE_LOG(LogTemp,Display,TEXT("SITP_ONLINE_DEPTH_RUN index=%d status=%s captures=%d path_cm=%.3f"),Index,*Status,CaptureCount,WalkedCm);
-    Active=Settling=false;if (Agent) Agent->GetCharacterMovement()->StopMovementImmediately();
+    Active=Settling=PendingObservation=false;if (Agent) Agent->GetCharacterMovement()->StopMovementImmediately();
     if (Controller) { Controller->UnPossess();Controller->Destroy();Controller=nullptr; }if (Agent) { Agent->Destroy();Agent=nullptr; }
     NextStart=GetWorld()->GetTimeSeconds()+.1;Save(false);
 }
@@ -291,10 +339,10 @@ void ASpatialLabOnlineDepthRunner::Finish(const FString& Status)
 void ASpatialLabOnlineDepthRunner::Save(bool Finished)
 {
     TSharedRef<FJsonObject> Report=MakeShared<FJsonObject>();Report->SetNumberField(TEXT("schema_version"),1);
-    Report->SetStringField(TEXT("condition"),TEXT("online_stopped_depth_geometry_pose_supervision"));
-    Report->SetStringField(TEXT("evidence_kind"),TEXT("ue_game_world_stopped_rgbd_observation_dependent_direct_motion"));
+    Report->SetStringField(TEXT("condition"),Input->GetStringField(TEXT("condition")));
+    Report->SetStringField(TEXT("evidence_kind"),VisualTask?TEXT("ue_game_world_rgb_marker_depth_target_search"):TEXT("ue_game_world_stopped_rgbd_observation_dependent_direct_motion"));
     Report->SetStringField(TEXT("executor"),TEXT("CharacterMovement_AddMovementInput"));Report->SetStringField(TEXT("position_reference"),TEXT("capsule_feet_cm"));
-    Report->SetStringField(TEXT("pose_source"),TEXT("engine_ground_truth_reset_relative_goal_and_actuation"));
+    Report->SetStringField(TEXT("pose_source"),VisualTask?TEXT("engine_ground_truth_reset_and_actuation_only"):TEXT("engine_ground_truth_reset_relative_goal_and_actuation"));
     Report->SetStringField(TEXT("attempt_id"),AttemptId);Report->SetStringField(TEXT("manifest_sha256"),Input->GetStringField(TEXT("manifest_sha256")));
     Report->SetStringField(TEXT("scope"),Input->GetStringField(TEXT("scope")));Report->SetStringField(TEXT("map"),GetWorld()->GetOutermost()->GetName());
     Report->SetBoolField(TEXT("finished"),Finished);Report->SetNumberField(TEXT("expected_runs"),Runs.Num());Report->SetArrayField(TEXT("runs"),Results);

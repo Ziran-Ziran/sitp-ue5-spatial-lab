@@ -39,7 +39,8 @@ void ASpatialLabGameMode::StartPlay()
 {
     Super::StartPlay();
     FString Input;
-    if (FParse::Value(FCommandLine::Get(),TEXT("SITPOnlineDepth="),Input))
+    if (FParse::Value(FCommandLine::Get(),TEXT("SITPOnlineDepth="),Input)
+        || FParse::Value(FCommandLine::Get(),TEXT("SITPVisualMarker="),Input))
     {
         GetWorld()->SpawnActor<ASpatialLabOnlineDepthRunner>();
         return;
