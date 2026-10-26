@@ -65,3 +65,13 @@ class DepthControlProvenanceTests(unittest.TestCase):
         self.game['command'][2]='/Game/SpatialLab/Other'
         self.game['command'].append(self.plan['map'])
         with self.assertRaises(ValueError):self.verify()
+
+    def test_duplicate_case_insensitive_producer_flags_cannot_hide_actual_inputs(self):
+        for producer,flags in (('game',('-game','-SITPDepthPlan=/different/plan.json','-sitpresult=/different/result.json')),
+                               ('fixture',('-run=other_commandlet','-SCRIPT=other.py'))):
+            original=copy.deepcopy(getattr(self,producer))
+            for flag in flags:
+                with self.subTest(producer=producer,flag=flag):
+                    getattr(self,producer)['command'].insert(3 if producer=='game' else 2,flag)
+                    with self.assertRaises(ValueError):self.verify()
+                    setattr(self,producer,copy.deepcopy(original))

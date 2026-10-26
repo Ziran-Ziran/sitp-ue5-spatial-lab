@@ -86,8 +86,8 @@ def summarize(rows):
         latency_observed_runs=len(measured),mean_execution_wall_s=sum(row['wall_s'] for row in measured)/len(measured) if measured else None)
 
 
-def evaluate(bundle,record):
-    validate_bundle(bundle)
+def evaluate(bundle,record,*,bundle_validator=validate_bundle):
+    bundle_validator(bundle)
     if (record.get('condition')!=CONDITION or record.get('execution_scope')!=bundle['execution_scope']
             or record.get('manifest_sha256')!=bundle['manifest_sha256'] or record.get('map')!=bundle['map']
             or record.get('evidence_kind')!='ue_game_world_supplied_depth_waypoint_character_movement'

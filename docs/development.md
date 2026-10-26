@@ -203,3 +203,23 @@ python scripts/city_marker_experiment.py compare --project $sceneProject --captu
 ```
 
 prepare 的引擎查询、初始化与 NavMesh 重建仅为显式场景构造，受共享锁/超时/进程树守卫保护；原地图哈希必须保持不变。查看 placement-plan、fixture 和状态日志，空目标构造不能开始正向评测。run 才执行真正的城市像素目标任务；compare 只用 CPU 重建原完整任务，核对构造/控制/实际生产者/源码/DLL/地图并重算全部像素、动作、轨迹和事后真值关联。真实家具类别仍不在此入口的能力声明中。
+
+
+## 观测支撑面模型的独立比较
+
+CPU 同图查询只使用 input，不接收评测位姿；输出目录必须新建：
+
+```powershell
+python ue5/tools/support_plane_replay.py --input output/pitch-execution-run1/capture/input --out output/support-plane-replay-run1
+```
+
+物理转移先用当前 DLL 验收独立 supplied-route 控制，再冻结全部原帧与两个模型；它沿用固定局部三米查询和原执行预算，不是在斜坡上放宽验收。所有重任务继续传共享锁、超时及截止时间参数，见本节前述约定。
+
+```powershell
+python scripts/depth_path_experiment.py synthetic --engine-root $ueRoot --project $sceneProject --lock $resourceLock --experiment-map /Game/SpatialLab/SupportControls_run1 --out output/support-controls-run1
+python scripts/depth_path_experiment.py prepare --ground-model-pair --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --out output/support-prepare-run1
+python scripts/depth_path_experiment.py run --ground-model-pair --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --plan output/support-prepare-run1/plan.json --controls output/support-controls-run1 --out output/support-execution-run1
+python scripts/compare_support_plane_transfer.py --project $sceneProject --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --controls output/support-controls-run1 --run output/support-execution-run1 --out output/support-audit-run1.json
+```
+
+最后一条只使用 CPU，重建两模型完整计划并重算实际轨迹/反馈，核对原始生产者、当前模型源码、DLL、地图、控制快照和所有源像素。源码或输入改变时另建计划/输出，不改原始记录；离线 approved 数、物理到达数和颜色目标成功率分别报告。
