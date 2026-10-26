@@ -91,7 +91,7 @@ class StageNavigationTests(unittest.TestCase):
             self.assertEqual(result.returncode,0,result.stderr)
         else:
             os.symlink(outside,link,target_is_directory=True)
-        self.addCleanup(os.rmdir,link)
+        self.addCleanup(os.rmdir if os.name=='nt' else os.unlink,link)
         with self.assertRaises(ValueError):
             self.module.stage(self.root,self.project,self.sources)
         self.assertEqual(list(outside.iterdir()),[])
