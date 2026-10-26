@@ -2,6 +2,7 @@
 #include "SpatialLabVisibility.h"
 #include "SpatialLabSearch.h"
 #include "SpatialLabDepthRunner.h"
+#include "SpatialLabOnlineDepthRunner.h"
 #include "AIController.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
@@ -38,6 +39,11 @@ void ASpatialLabGameMode::StartPlay()
 {
     Super::StartPlay();
     FString Input;
+    if (FParse::Value(FCommandLine::Get(),TEXT("SITPOnlineDepth="),Input))
+    {
+        GetWorld()->SpawnActor<ASpatialLabOnlineDepthRunner>();
+        return;
+    }
     if (FParse::Value(FCommandLine::Get(),TEXT("SITPDepthPlan="),Input))
     {
         GetWorld()->SpawnActor<ASpatialLabDepthRunner>();

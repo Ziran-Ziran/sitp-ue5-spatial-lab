@@ -91,3 +91,14 @@ experiments 用按 scene 的 train/validation/test 互斥标识；不能从同�
 - `SpatialLabDepthRunner` 直接 `AddMovementInput`，没有 MoveTo、NavMesh 路径/投影调用；位置反馈来源 `engine_ground_truth_for_actuation`。按固定 1/60 秒运动，逐点 5 cm 容差；限制 30 模拟秒、30 执行 wall 秒、20 m 路长、10 cm 跟踪偏差、50 cm 垂直偏离与 2 模拟秒无进展。每点停止速度后转向，保存全部 post-physics 脚底轨迹、到点事件、重置与运动耗时。碰撞沿用 0.1 模拟秒去抖的非地面阻挡事件。
 - 独立评分核对原生 evidence、UUID、冻结完整集合/原输入、真实轨迹首尾、累计三维路长、固定步长、速度、到点次序/时刻/位置、预算及到达后的走廊。失败与缺失仍在成功率分母；未开始测量的碰撞/路长/时延为 null，零有效测量时对应汇总也为 null，另报实际测量数。
 - 执行 scope `frozen_static_depth_transfer` 是冻结静态观察的局部探针转移，不是移动中 RGB-D 采集、在线重规划或原语义任务。`synthetic_supplied_route_controls` 使用显式给定的路线验证动作/墙体/出生/零运动/不执行案例；不能当作深度估计成绩。执行 wall 不含 UE 启动、重置和离线规划，不能声称端到端实时延迟。
+
+## 停止采图的在线深度局部任务（schema_version 1）
+
+条件为 `online_stopped_depth_geometry_pose_supervision`。任务从原冻结采集计划的全部源位姿生成：每个源帧固定原起点、heading 和前方三米世界目标，各执行 `initial_sweep_once` 与 `receding_sweep`。只用源位姿定义重复任务，不给算法历史图像或按旧规划成功筛选起点。它是相关位姿上的局部几何任务，不是原来的语义目标搜索。
+
+- 首次观察和后续观察都来自本次 Game world 的实际角色脚底上方 150 cm。角色停止后同步采集水平/45°/垂直向下三视图，heading 固定为任务方向；已知虚拟相机外参不等于估计相机姿态或测量机械转动成本。像素、内参、眼高/俯仰先验沿用原几何参数，曝光来自预先冻结的独立场景设置。采集临时 EV100 设置只影响当前进程。
+- 单步 `input/` 仅含 observation.json 与 level/down45/nadir 各自的 rgb.png、depth.png。PNG 哈希在采集后立即封存；RGB 以 BGR8 解码，深度为 uint16 光轴毫米。元数据仅有固定标定/相对视角、眼高先验与本回合 `t_sim_s`，时钟来源 `game_world_simulated_seconds_at_stopped_capture`。三幅图之间不推进游戏模拟；这是停止观察，不是连续采样或真实传感器时钟。
+- 策略请求白名单为 schema_version、attempt_id、run_id、step_id、input_dir、goal_right_forward_m、mode、t_sim_s。当前相对目标由执行侧用引擎实际位姿与冻结世界目标换算，属于显式位姿监督；请求不包含世界坐标、地图、标签、引擎网格或未来图像。数值策略不导入 unreal；UE 内嵌 Python 只用标准库启动当前外部 Python 数值进程，20 秒超时且属于父 Job Object 进程树。
+- 每步以当前三幅深度重建原局部网格/A* 和连续足迹 gate。一次观察条件执行整条初始路线；重观察条件只执行沿该路线至多 1 m 的连续前缀，保持折点，停止后重新采图和规划。没有跨时刻地图融合或语义记忆。最多八次三视角观察，额外观察与计算预算必须披露。
+- 直接动作、胶囊、地形与到点/重置/跟踪限制沿用冻结路线执行器；在线回合上限 30 模拟秒、60 wall 秒、20 m 路长。whole-episode wall 包含同步渲染、数值子进程、等待和移动，单列 capture/bridge wall 与重置耗时；排除 UE 启动。固定步长仍为 1/60 秒加速模拟，不能声称实时性能。
+- 独立审计从保存像素重算每步动作，核对实际相机、脚底与轨迹模拟时刻、相对目标换算、步号/attempt、精确响应与到点反馈，再核验终点、路长和预算。失败、未出生、无观测和缺失回合保留；未开始测量的运动/碰撞为 null。合成控制中的新墙按同一规则在两条件实际移动 50 cm 后启用，不把此干预当作静态城市数据。

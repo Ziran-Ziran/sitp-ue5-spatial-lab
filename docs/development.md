@@ -143,3 +143,9 @@ python ue5/tools/pitch_sweep_report.py --input output/pitch-execution-run1/captu
 `scripts/depth_path_experiment.py` 的 prepare/synthetic/run 复现命令见 navigation-baseline.md。prepare 重算所有帧并保存确定性的冻结计划；run 再核对源像素、原采集状态快照、地图和几何源码。几何输出之后才由独立层读取源位姿做重置/动作坐标转换。当前 DLL 的内置无 NavMesh 控制必须通过；物理执行用 NullRHI，无需重新渲染图像。若源码或源输入改变，另建计划和输出，不改写旧记录。
 
 直接动作执行器会在墙体阻挡、无进展、轨迹偏离、重置异常或预算耗尽时失败。先检查 execution.json 的实际轨迹/反馈及 game.job.log/status，再针对原因修复；不要按城市真值放宽足迹检查或只执行已知成功帧。冻结探针的转移结果与语义搜索、在线 RGB-D 闭环分别报告。
+
+## 在线停止观察与重规划
+
+`scripts/online_depth_experiment.py` 提供 prepare/synthetic/run，见 navigation-baseline.md。prepare 只用 CPU 冻结源位姿任务；synthetic 编译并创建独立无 NavMesh 控制地图；run 实际 GPU 采图与直接动作。数值 worker 使用启动器当前 Python，需已有 numpy/opencv；UE 内嵌 Python 只负责有界子进程。每次观察单独保存严格 input、request/response 和原生相机/动作/轨迹证据，审计不读取全场景几何。
+
+新任务输出和地图必须不存在。当前原生 DLL 与策略源码控制必须通过，子进程也受共享锁下的父进程树约束。观察期间不修改冻结源码或输入；任何失败先查本次日志/状态/像素/动作，不复用旧响应或补写原始证据。该模式是停走观察，不是连续实时传感器或完整语义目标导航。
