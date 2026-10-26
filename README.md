@@ -48,6 +48,8 @@ RGB-D 位姿回放入口为 `python scripts/render_replay_experiment.py --help`�
 
 受控视觉类别入口 `scripts/visual_marker_experiment.py` 使用固定 HSV 红/蓝标记检测、光轴深度局部目标、深度路径和同一直接动作模块。类别来自 RGB，任务请求不含目标坐标；真值只在结束后独立评分。它面向可核验的颜色标记控制，家具识别与跨场景泛化仍未实现。
 
+`scripts/city_marker_experiment.py` 将同一颜色目标链路放入独立城市覆盖场景，保留所有源位姿、颜色误选与几何/动作失败。当前两规划条件都为 0/96 到达，零接触；原始失败和构造诊断可复查，不能用中性控制场景成绩替代城市结果。
+
 ## 可选的本地场景
 
 已提供[两项目本地场景接入](docs/local-scenes.md)：共用源素材登记，各自维护独立 UE 实验副本；素材与本机绑定不上传 Git，也不构成训练或导航已验收。

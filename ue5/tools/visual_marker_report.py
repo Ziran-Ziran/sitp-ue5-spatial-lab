@@ -28,7 +28,7 @@ def local_to_world(point,feet,heading):
     return [feet[0]+100*(f*math.cos(angle)-r*math.sin(angle)),feet[1]+100*(f*math.sin(angle)+r*math.cos(angle)),feet[2]+100*u]
 
 
-def audit_execution(task,raw,artifacts,attempt,run_index):
+def audit_execution(task,raw,artifacts,attempt,run_index,*,exposure=1):
     if raw['engine_path_requests']!=0:raise ValueError('engine paths forbidden in visual depth condition')
     if type(raw['measurement_started'])!=bool or type(raw['agent_spawned'])!=bool:raise ValueError('explicit native measurement state required')
     if not raw['measurement_started']:
@@ -49,7 +49,7 @@ def audit_execution(task,raw,artifacts,attempt,run_index):
     reset_xy=distance_xy(initial,task['start_cm']);reset_z=abs(initial[2]-task['start_cm'][2])
     for key in ('reset_wall_s','reset_xy_cm','reset_z_cm','capture_wall_s','policy_bridge_wall_s','max_tracking_error_cm'):metric(raw[key])
     if abs(reset_xy-raw['reset_xy_cm'])>.01 or abs(reset_z-raw['reset_z_cm'])>.01:raise ValueError('incorrect actual reset drift')
-    actions=raw['actions'];routes={};last_time=-1;heading=task['heading_deg'];empty=0;scans=0;candidate=None
+    actions=raw['actions'];routes={};last_time=-1;heading=task['heading_deg'];empty=0;scans=0;candidate=None;selected_points=[]
     if raw['capture_count']!=len(actions) or not 0<=len(actions)<=12:raise ValueError('incomplete or unbounded visual observations')
     if not actions and (len(path)!=1 or sim!=0 or length!=0):raise ValueError('movement without visual observation')
     if actions and abs(actions[0]['t_sim_s'])>.002:raise ValueError('visual movement preceded first observation')
@@ -77,13 +77,16 @@ def audit_execution(task,raw,artifacts,attempt,run_index):
         if len(captures)!=3:raise ValueError('all current calibrated pitch views required')
         for native,view in zip(captures,VIEWS):
             if (native.get('captured') is not True or native['view']!=view['name'] or native['width']!=320 or native['height']!=240
-                    or native['fixed_exposure_ev100']!=1 or math.dist(position(native['camera_position_cm']),eye)>.001
+                    or native['fixed_exposure_ev100']!=exposure or math.dist(position(native['camera_position_cm']),eye)>.001
                     or not rotation_matches(native['camera_rotation_deg'],[-view['pitch_down_deg'],heading,0])):
                 raise ValueError('actual marker camera does not match current stopped pose')
         response=event['response']
         if response!=read(folder/'response.json') or without_cpu(response)!=without_cpu(decide(request)):
             raise ValueError('visual target or depth command not reproducible from actual pixels')
         metric(response['perception_and_planning_wall_s'])
+        if response['selected'] is not None:
+            selected_points.append(dict(step_id=step,category=response['selected']['category'],
+                position_cm=local_to_world(response['selected']['position_right_forward_up_m'],feet,heading)))
         action=response['action']
         if action in ('candidate_reached','stop','reject'):
             expected='candidate_reached' if action=='candidate_reached' else ('geometry_'+response['reason'] if action=='reject' else response['reason'])
@@ -130,7 +133,18 @@ def audit_execution(task,raw,artifacts,attempt,run_index):
             raise ValueError('candidate outside actual reset, trajectory or resource budgets')
     return dict(candidate_reached=candidate is not None,candidate=candidate,measurement_valid=True,collisions=raw['collisions'],
         path_length_cm=length,wall_s=wall,captures=len(actions),scans=scans,sim_s=sim,
-        capture_wall_s=capture_wall,policy_bridge_wall_s=bridge_wall)
+        capture_wall_s=capture_wall,policy_bridge_wall_s=bridge_wall,selected_points=selected_points)
+
+
+def associate_selections(points,entities):
+    """Post-run metric association only; never passed to the pixel worker."""
+    result=[]
+    for point in points:
+        same=[e for e in entities if e['category']==point['category']]
+        nearest=min(((math.dist(point['position_cm'],e['position_cm']),e['entity_id']) for e in same),default=(None,None))
+        result.append(dict(step_id=point['step_id'],category=point['category'],nearest_entity_id=nearest[1],
+            distance_cm=nearest[0],matched=nearest[0] is not None and nearest[0]<=50))
+    return result
 
 
 def validate_truth(truth,map_path):
@@ -149,7 +163,7 @@ def evaluate(tasks,record,artifacts,truth):
     if (record.get('schema_version')!=tasks['schema_version'] or record['condition']!=CONDITION or record['evidence_kind']!='ue_game_world_rgb_marker_depth_target_search'
             or record['executor']!='CharacterMovement_AddMovementInput' or record['position_reference']!='capsule_feet_cm'
             or record['pose_source']!=POSE_SOURCE or record['map']!=tasks['map'] or record['scope']!=tasks['scope']
-            or record['manifest_sha256']!=tasks['manifest_sha256'] or record['expected_runs']!=12):raise ValueError('wrong visual native evidence or task set')
+            or record['manifest_sha256']!=tasks['manifest_sha256'] or record['expected_runs']!=len(tasks['runs'])):raise ValueError('wrong visual native evidence or task set')
     attempt=str(uuid.UUID(record['attempt_id']))
     if attempt!=record['attempt_id']:raise ValueError('canonical visual attempt required')
     expected={r['run_id']:r for r in tasks['runs']};actual={}
@@ -163,7 +177,9 @@ def evaluate(tasks,record,artifacts,truth):
         if task['run_id'] in actual:
             raw=actual[task['run_id']]
             try:
-                score.update(audit_execution(task,raw,artifacts,attempt,index));score['failure_reason']=raw['status']
+                score.update(audit_execution(task,raw,artifacts,attempt,index,exposure=tasks['fixed_exposure_ev100']));score['failure_reason']=raw['status']
+                entities=[e for e in truth['entities'] if not (task['environment_case']=='red_hidden' and e['category']=='red_marker')]
+                score['selection_associations']=associate_selections(score.pop('selected_points',[]),entities)
                 if score['candidate_reached']:
                     entities=[e for e in truth['entities'] if e['category']==task['category']
                         and not (task['environment_case']=='red_hidden' and e['category']=='red_marker')]
@@ -173,7 +189,12 @@ def evaluate(tasks,record,artifacts,truth):
                         matched_entity_id=matches[0]['entity_id'] if matches else None)
             except (ValueError,KeyError,TypeError,IndexError,OSError) as error:score.update(failure_reason='invalid_execution',validation_error=str(error))
         scores.append(score)
+    associations=[a for row in scores for a in row.get('selection_associations',[])]
+    perception=dict(selected_observations=len(associations),true_beacon_associations=sum(a['matched'] for a in associations),
+        nonmatching_color_selections=sum(not a['matched'] for a in associations),
+        runs_with_true_selection=sum(any(a['matched'] for a in row.get('selection_associations',[])) for row in scores),
+        interpretation='post-run 50cm metric association to active same-category beacon truth; not visible-target recall or calibrated confidence')
     return dict(schema_version=tasks['schema_version'],planner_variant=tasks.get('planner_variant','legacy_centers'),condition=CONDITION,attempt_id=attempt,manifest_sha256=tasks['manifest_sha256'],
-        finished=record.get('finished') is True and len(actual)==len(expected),overall=summarize(scores),
+        finished=record.get('finished') is True and len(actual)==len(expected),overall=summarize(scores),perception_associations=perception,
         by_category={category:summarize([r for r in scores if r['category']==category]) for category in sorted(CATEGORIES)},runs=scores,
         interpretation='controlled red/blue RGB-marker categories, optical-depth goals and direct movement; engine pose for reset/actuation only, synthetic fixture, no furniture/generalization or real-time claim')
