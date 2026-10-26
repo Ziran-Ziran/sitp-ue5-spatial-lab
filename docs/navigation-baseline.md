@@ -95,3 +95,19 @@ python scripts/render_replay_experiment.py run --engine-root $ueRoot --project $
 输出包含 `input-report.json`、`capture/input/` 和独立的 `capture/evaluation/`。只把 input 下各 sequence 的像素/内参/源时间转交未来视觉模块；不要连同位姿或完整采集索引传入算法。当前输入检查拒绝真值字段、缺配对、串时间/位姿、换图及变化的源地图。控制验收也核对当前 DLL、脚本和实际输出目录；原生重编译后需对应控制证据。
 
 相机 heading 由过去运动推导，初始为 0，不是假定恢复了实际游戏相机。图像尚未驱动在线策略；曝光、深阴影与有效深度比例也不能当作语义识别成绩。详细坐标、深度、曝光与时间限制见数据合同。所有图像、标注、位姿和日志仍保留本地。
+
+## 冻结深度路径的实际运动
+
+先完成 development.md 的 pitch sweep 采集，再冻结全部帧的单/三视角局部探针和连续足迹检查。prepare 为 CPU 工作，不启动 UE；另两步使用共享锁、进程树超时和新的地图/输出。
+
+```powershell
+python scripts/depth_path_experiment.py prepare --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --out output/depth-prepare-run1
+python scripts/depth_path_experiment.py synthetic --engine-root $ueRoot --project $sceneProject --lock $resourceLock --experiment-map /Game/SpatialLab/DepthControls_run1 --out output/depth-controls-run1
+python scripts/depth_path_experiment.py run --engine-root $ueRoot --project $sceneProject --lock $resourceLock --capture output/pitch-execution-run1/capture --capture-job output/pitch-execution-run1/render.job.json --plan output/depth-prepare-run1/plan.json --controls output/depth-controls-run1 --out output/depth-execution-run1
+```
+
+当前控制含绕墙到达、故意直行撞墙、初始墙内出生、不生成代理的规划失败与零运动到达。所有控制预期均通过才允许城市执行。首次深墙出生的 overlap 查询曾漏报，实际贴地漂移被重置上限拦下；增加初始穿透 sweep 后控制通过，失败原始记录保留。
+
+本机单场景一次冻结实验含 48 个源帧、两条件共 96 条记录。水平条件 48 条均因起点未知未执行；三视角有 12 条离线路径，连续 gate 拒绝其中 2 条连接段/路径足迹、2 条起点足迹，批准的 8 条均实际到达，0 个非地面碰撞事件，总实际路长 2660.94 cm。三视角全部帧成功为 8/48；其余 40 条规划或连续检查失败保留。相关源帧不构成 48 个独立搜索任务。
+
+8 条运动的平均执行 wall 为 0.08925 秒，使用加速固定模拟步长，排除 UE 启动、重置、离线采集和规划；不能解释为实时导航延迟。路线由深度估计几何生成，世界坐标转换、重置与动作反馈使用显式引擎位姿。它不使用 NavMesh 路径，但尚未连接移动中采图和重规划，也不等同于椅子/路灯搜索成绩。全部原始证据仍在本地忽略目录。
