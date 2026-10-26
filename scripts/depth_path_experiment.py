@@ -29,6 +29,12 @@ def completed_job(path):
     return spec
 
 
+def unique_argument(command,expected):
+    key=expected.split('=',1)[0].lower()
+    if [token for token in command if token.split('=',1)[0].lower()==key]!=[expected]:
+        raise ValueError('unique exact depth producer argument required: '+key)
+
+
 def verify_controls(directory,project,build):
     directory=Path(directory).absolute();unlinked(directory)
     plan=validate_bundle(read(directory/'plan.json'))
@@ -44,6 +50,7 @@ def verify_controls(directory,project,build):
         '-SITPResult='+str(directory/'execution.json').replace('\\','/')}
     if not required<=set(command) or command[2]!=plan['map']:
         raise ValueError('controls do not match actual executed project/map/plan/output')
+    for argument in required-{str(project).replace('\\','/'),plan['map']}:unique_argument(command,argument)
     hashes={Path(path).absolute():sha for path,sha in game.get('input_sha256',{}).items()}
     map_file=project.parent/'Content'/(plan['map'][len('/Game/'):]+'.umap')
     if (hashes.get((ROOT/build['binary']).absolute())!=build['binary_sha256']
@@ -52,6 +59,7 @@ def verify_controls(directory,project,build):
         raise ValueError('controls used another native build, map or plan')
     script=ROOT/'ue5/tools/depth_execution_fixture.py'
     expected='-script='+subprocess.list2cmdline([str(script).replace('\\','/'),'--map',plan['map'],'--out',str(directory/'fixture.json').replace('\\','/')])
+    unique_argument(fixture['command'],'-run=pythonscript');unique_argument(fixture['command'],expected)
     source_inputs={Path(path).absolute():sha for path,sha in fixture.get('input_sha256',{}).items()}
     if (fixture['command'].count(expected)!=1 or str(project).replace('\\','/') not in fixture['command']
             or '-run=pythonscript' not in fixture['command'] or source_inputs.get(script)!=file_hash(script)
@@ -71,18 +79,23 @@ def main():
     parser.add_argument('action',choices=('prepare','synthetic','run'))
     for name in ('engine-root','project','lock','out'):parser.add_argument('--'+name,type=Path,required=True)
     for name in ('capture','capture-job','plan','controls'):parser.add_argument('--'+name,type=Path)
+    parser.add_argument('--ground-model-pair',action='store_true',help='explicit schema-2 horizontal/support-plane frozen comparison')
     parser.add_argument('--experiment-map');parser.add_argument('--start-before');parser.add_argument('--finish-before')
     args=parser.parse_args();project=args.project.absolute();unlinked(project)
     if not re.fullmatch(r'local/scenes/[a-z0-9-]+/workspace/UE5/[A-Za-z][A-Za-z0-9_]*\.uproject',project.relative_to(ROOT).as_posix()):
         raise ValueError('independent local scene workspace required')
+    if args.ground_model_pair and args.action=='synthetic':raise ValueError('model-pair uses separately verified supplied-route controls')
+    build_selected,validate_selected=build_bundle,validate_bundle
+    if args.ground_model_pair:
+        from support_plane_execution import build_bundle as build_selected,validate_bundle as validate_selected
     if args.action=='synthetic':
         if not re.fullmatch(r'/Game/SpatialLab/[A-Za-z][A-Za-z0-9_]*',args.experiment_map or ''):raise ValueError('new controlled experiment map required')
     elif not args.capture or not args.capture_job:raise ValueError('prepare/run requires original capture and capture-job')
     if args.action=='run' and (not args.plan or not args.controls):raise ValueError('run requires frozen plan and native movement controls')
     if args.action!='synthetic':
         binding=capture_job_binding(args.capture,args.capture_job,project=project)
-        bundle=build_bundle(args.capture,source_job_binding=binding)
-        if args.action=='run' and validate_bundle(read(args.plan))!=bundle:raise ValueError('frozen plan differs from current source pixels/poses/geometry code')
+        bundle=build_selected(args.capture,source_job_binding=binding)
+        if args.action=='run' and validate_selected(read(args.plan))!=bundle:raise ValueError('frozen plan differs from current source pixels/poses/geometry code')
     out=create_run_directory(ROOT,args.out)
     if args.action=='prepare':
         write(out/'plan.json',bundle)
@@ -119,9 +132,13 @@ def main():
         for filename in ('capture-index.json','evaluation/sweep-plan.json','evaluation/camera_poses.jsonl'):
             path=args.capture.absolute()/filename;inputs[str(path)]=file_hash(path)
         for path in (args.capture_job.absolute(),args.capture_job.absolute().with_suffix('.status.json')):inputs[str(path)]=file_hash(path)
+    if args.ground_model_pair:
+        inputs[str(Path(__file__).absolute())]=file_hash(Path(__file__))
+        for name in ('plan.json','game.job.json','game.job.status.json','fixture.job.json','fixture.job.status.json'):
+            path=args.controls.absolute()/name;inputs[str(path)]=file_hash(path)
     job('game',[editor,project,bundle['map'],'-game','-SITPDepthPlan='+str(out/'plan.json'),'-SITPResult='+str(out/'execution.json'),
         *common,'-benchmark','-UseFixedTimeStep','-FPS=60','-deterministic'],inputs)
-    raw_hash=file_hash(out/'execution.json');raw=read(out/'execution.json');report=evaluate(bundle,raw)
+    raw_hash=file_hash(out/'execution.json');raw=read(out/'execution.json');report=evaluate(bundle,raw,bundle_validator=validate_selected)
     if file_hash(out/'execution.json')!=raw_hash:raise ValueError('raw execution changed during scoring')
     report['raw_execution_sha256']=raw_hash;write(out/'report.json',report)
     if not report['finished']:raise RuntimeError('incomplete depth transfer; missing cases retained')

@@ -50,6 +50,8 @@ RGB-D 位姿回放入口为 `python scripts/render_replay_experiment.py --help`�
 
 `scripts/city_marker_experiment.py` 将同一颜色目标链路放入独立城市覆盖场景，保留所有源位姿、颜色误选与几何/动作失败。当前两规划条件都为 0/96 到达，零接触；原始失败和构造诊断可复查，不能用中性控制场景成绩替代城市结果。
 
+观测支撑面入口 `ue5/tools/support_plane_replay.py` 与 `depth_path_experiment.py --ground-model-pair` 比较同图水平/坡面几何。当前完整冻结路径实测为 8/48 与 10/48 到达、测量中均零接触；两项增量来自一个相同深度输入组，不能当独立样本或城市语义成功。直立胶囊净空、失败拟合与未知区域均保留，详见导航基线。
+
 ## 可选的本地场景
 
 已提供[两项目本地场景接入](docs/local-scenes.md)：共用源素材登记，各自维护独立 UE 实验副本；素材与本机绑定不上传 Git，也不构成训练或导航已验收。
