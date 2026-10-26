@@ -32,7 +32,7 @@ def runs(frames,variant):
         source_sequence=f['sequence'],source_frame_id=f['frame_id']) for f in frames for category in ('red_marker','blue_marker')]
 
 
-def build_tasks(map_path,map_sha256,source,scene_binding,variant):
+def build_tasks(map_path,map_sha256,source,scene_binding,variant,*,goal_horizon_policy=None):
     validate_source(source)
     if source['schema_version']!=1 or source['scope']!='frozen_source_pose_geometric_tasks' or variant not in VARIANTS:
         raise ValueError('original source tasks and predeclared city variant required')
@@ -41,10 +41,17 @@ def build_tasks(map_path,map_sha256,source,scene_binding,variant):
         fixed_exposure_ev100=source['fixed_exposure_ev100'],success_radius_cm=175,settings=dict(SETTINGS,max_captures=12),planner_variant=variant,
         source_tasks={k:copy.deepcopy(source[k]) for k in ('map','map_sha256','fixed_exposure_ev100','source_binding','manifest_sha256')},
         frame_bindings=copy.deepcopy(source['frame_bindings']),scene_binding=copy.deepcopy(scene_binding),runs=runs(source['frame_bindings'],variant))
-    tasks['manifest_sha256']=digest(tasks);return validate_city_tasks(tasks)
+    tasks['manifest_sha256']=digest(tasks)
+    if goal_horizon_policy is not None:
+        from marker_horizon_tasks import with_horizon
+        tasks=with_horizon(tasks,goal_horizon_policy)
+    return validate_city_tasks(tasks)
 
 
 def validate_city_tasks(tasks):
+    if tasks.get('schema_version')==3:
+        from marker_horizon_tasks import without_horizon
+        validate_city_tasks(without_horizon(tasks));return tasks
     keys={'schema_version','condition','scope','pose_source','semantic_source','geometry_source','map','map_sha256','fixed_exposure_ev100',
         'success_radius_cm','settings','planner_variant','source_tasks','frame_bindings','scene_binding','runs','manifest_sha256'}
     if (set(tasks)!=keys or tasks['schema_version']!=2 or tasks['scope']!=SCOPE or tasks['condition']!=CONDITION

@@ -48,7 +48,7 @@ RGB-D 位姿回放入口为 `python scripts/render_replay_experiment.py --help`�
 
 受控视觉类别入口 `scripts/visual_marker_experiment.py` 使用固定 HSV 红/蓝标记检测、光轴深度局部目标、深度路径和同一直接动作模块。类别来自 RGB，任务请求不含目标坐标；真值只在结束后独立评分。它面向可核验的颜色标记控制，家具识别与跨场景泛化仍未实现。
 
-`scripts/city_marker_experiment.py` 将同一颜色目标链路放入独立城市覆盖场景，保留所有源位姿、颜色误选与几何/动作失败。当前两规划条件都为 0/96 到达，零接触；原始失败和构造诊断可复查，不能用中性控制场景成绩替代城市结果。
+`scripts/city_marker_experiment.py` 将同一颜色目标链路放入独立城市覆盖场景，保留所有源位姿、颜色误选与几何/动作失败。原两规划条件均为 0/96；新增同一 legacy planner 的三米/一米视距现场对照也各为 0/96，零接触。一米增加移动与观察但未提高成功率；完整失败和构造诊断可复查，不能用中性控制场景成绩替代城市结果。
 
 观测支撑面入口 `ue5/tools/support_plane_replay.py` 与 `depth_path_experiment.py --ground-model-pair` 比较同图水平/坡面几何。当前完整冻结路径实测为 8/48 与 10/48 到达、测量中均零接触；两项增量来自一个相同深度输入组，不能当独立样本或城市语义成功。直立胶囊净空、失败拟合与未知区域均保留，详见导航基线。
 

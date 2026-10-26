@@ -78,7 +78,7 @@ void ASpatialLabOnlineDepthRunner::BeginPlay()
     if (Valid)
     {
         const int32 Version=Input->GetIntegerField(TEXT("schema_version"));
-        Valid=(Version==1 || Version==2)
+        Valid=(Version==1 || Version==2 || (Version==3 && VisualTask))
             && Input->GetStringField(TEXT("condition"))==(VisualTask?TEXT("rgbd_color_marker_target_search_pose_actuation_supervision"):TEXT("online_stopped_depth_geometry_pose_supervision"))
             && Input->GetStringField(TEXT("map"))==GetWorld()->GetOutermost()->GetName()
             && Input->TryGetArrayField(TEXT("runs"),Rows) && Rows && Rows->Num()>0 && Rows->Num()<=200;
@@ -90,13 +90,20 @@ void ASpatialLabOnlineDepthRunner::BeginPlay()
                 || Vector(Row->GetArrayField(TEXT("start_cm"))).ContainsNaN()
                 || (!VisualTask && Vector(Row->GetArrayField(TEXT("goal_cm"))).ContainsNaN())
                 || !FMath::IsFinite(Row->GetNumberField(TEXT("heading_deg")))) Valid=false;
-            if (Valid && Version==2)
+            if (Valid && Version>=2)
             {
                 FString Variant,TopVariant;
                 const TCHAR* Key=VisualTask?TEXT("planner_variant"):TEXT("query_cell_policy");
                 Valid=Row->TryGetStringField(Key,Variant) && Input->TryGetStringField(Key,TopVariant) && Variant==TopVariant
                     && (VisualTask ? (Variant==TEXT("legacy_centers") || Variant==TEXT("continuous_square") || Variant==TEXT("continuous_square_shortcuts"))
                                    : (Variant==TEXT("legacy_floor") || Variant==TEXT("boundary_snap_1e-9_cell")));
+            }
+            if (Valid && Version==3)
+            {
+                FString Horizon,TopHorizon;
+                Valid=Row->TryGetStringField(TEXT("goal_horizon_policy"),Horizon)
+                    && Input->TryGetStringField(TEXT("goal_horizon_policy"),TopHorizon) && Horizon==TopHorizon
+                    && (Horizon==TEXT("fixed_three_meters") || Horizon==TEXT("execution_prefix_one_meter"));
             }
         }
     }
@@ -209,7 +216,8 @@ void ASpatialLabOnlineDepthRunner::ObserveAndPlan()
     const double Angle=FMath::DegreesToRadians(Heading);const FVector Delta=(Goal-Position)/100;
     TSharedRef<FJsonObject> Request=MakeShared<FJsonObject>();Request->SetNumberField(TEXT("schema_version"),Input->GetIntegerField(TEXT("schema_version")));
     const TCHAR* PolicyKey=VisualTask?TEXT("planner_variant"):TEXT("query_cell_policy");
-    if (Input->GetIntegerField(TEXT("schema_version"))==2) Request->SetStringField(PolicyKey,Current->GetStringField(PolicyKey));
+    if (Input->GetIntegerField(TEXT("schema_version"))>=2) Request->SetStringField(PolicyKey,Current->GetStringField(PolicyKey));
+    if (Input->GetIntegerField(TEXT("schema_version"))==3) Request->SetStringField(TEXT("goal_horizon_policy"),Current->GetStringField(TEXT("goal_horizon_policy")));
     Request->SetStringField(TEXT("attempt_id"),AttemptId);Request->SetStringField(TEXT("run_id"),Current->GetStringField(TEXT("run_id")));
     Request->SetNumberField(TEXT("step_id"),Step);Request->SetNumberField(TEXT("t_sim_s"),Sim);
     Request->SetStringField(TEXT("input_dir"),Pixels);
@@ -240,7 +248,8 @@ void ASpatialLabOnlineDepthRunner::ObserveAndPlan()
         || Response->GetStringField(TEXT("run_id"))!=Current->GetStringField(TEXT("run_id"))
         || Response->GetIntegerField(TEXT("step_id"))!=Step || Response->GetNumberField(TEXT("t_sim_s"))!=Sim
         || Response->GetIntegerField(TEXT("schema_version"))!=Input->GetIntegerField(TEXT("schema_version"))
-        || (Input->GetIntegerField(TEXT("schema_version"))==2 && Response->GetStringField(PolicyKey)!=Current->GetStringField(PolicyKey)))
+        || (Input->GetIntegerField(TEXT("schema_version"))>=2 && Response->GetStringField(PolicyKey)!=Current->GetStringField(PolicyKey))
+        || (Input->GetIntegerField(TEXT("schema_version"))==3 && Response->GetStringField(TEXT("goal_horizon_policy"))!=Current->GetStringField(TEXT("goal_horizon_policy"))))
     { Event->SetStringField(TEXT("status"),TEXT("policy_bridge_failed"));Actions.Add(MakeShared<FJsonValueObject>(Event));Finish(TEXT("policy_bridge_failed"));return; }
     Event->SetObjectField(TEXT("response"),Response);Event->SetStringField(TEXT("status"),TEXT("complete"));Actions.Add(MakeShared<FJsonValueObject>(Event));
     if (FPlatformTime::Seconds()-StartedWall>=60) { Finish(TEXT("wall_timeout"));return; }

@@ -23,7 +23,7 @@ def fixed_runs():
     return runs
 
 
-def build_tasks(map_path,map_sha256,*,planner_variant=None):
+def build_tasks(map_path,map_sha256,*,planner_variant=None,goal_horizon_policy=None):
     tasks=dict(schema_version=1,condition=CONDITION,scope='synthetic_controlled_visual_marker_search',
         pose_source=POSE_SOURCE,semantic_source='rgb_fixed_hsv_color_marker',geometry_source='current_stopped_rgbd_depth_only',
         map=map_path,map_sha256=map_sha256,fixed_exposure_ev100=1,success_radius_cm=175,
@@ -32,13 +32,20 @@ def build_tasks(map_path,map_sha256,*,planner_variant=None):
         if planner_variant not in VARIANTS:raise ValueError('explicit frozen planner variant required')
         tasks.update(schema_version=2,planner_variant=planner_variant)
         tasks['runs']=[dict(run,planner_variant=planner_variant) for run in tasks['runs']]
-    tasks['manifest_sha256']=digest(tasks);return validate_tasks(tasks)
+    tasks['manifest_sha256']=digest(tasks)
+    if goal_horizon_policy is not None:
+        from marker_horizon_tasks import with_horizon
+        tasks=with_horizon(tasks,goal_horizon_policy)
+    return validate_tasks(tasks)
 
 
 def validate_tasks(tasks):
     if tasks.get('scope')=='frozen_city_marker_source_pose_tasks':
         from city_marker_tasks import validate_city_tasks
         return validate_city_tasks(tasks)
+    if tasks.get('schema_version')==3:
+        from marker_horizon_tasks import without_horizon
+        validate_tasks(without_horizon(tasks));return tasks
     version=tasks.get('schema_version');variant=tasks.get('planner_variant')
     expected_runs=fixed_runs()
     if version==2:

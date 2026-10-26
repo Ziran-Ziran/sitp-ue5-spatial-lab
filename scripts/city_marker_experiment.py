@@ -17,6 +17,7 @@ from city_marker_tasks import build_tasks,build_placement_plan,VARIANTS
 from visual_marker_report import evaluate
 from stage_navigation import unlinked
 from historical_worker import historical_bindings
+from marker_goal_horizon import POLICIES
 
 
 def norm(path):return str(path).replace('\\','/')
@@ -70,8 +71,9 @@ def inspect_scene(args,build):
 def audit(args,directory,build,*,worker_source_commit=None):
     directory=Path(directory).absolute();descriptor,original,binding,map_file=inspect_scene(args,build)
     tasks=read(directory/'tasks.json');variant=tasks['planner_variant']
-    if tasks!=build_tasks(descriptor['map'],descriptor['map_sha256'],original,binding,variant):raise ValueError('changed/filtered original city marker tasks')
-    marker_controls(args.controls,args.project,build,worker_source_commit=worker_source_commit)
+    if tasks!=build_tasks(descriptor['map'],descriptor['map_sha256'],original,binding,variant,goal_horizon_policy=tasks.get('goal_horizon_policy')):raise ValueError('changed/filtered original city marker tasks')
+    controls=marker_controls(args.controls,args.project,build,worker_source_commit=worker_source_commit)
+    if tasks.get('goal_horizon_policy')!=controls.get('horizon_policy'):raise ValueError('city horizon requires matching current marker controls')
     game=completed_job(directory/'game.job.json');command=game['command'];hashes={Path(p).absolute():sha for p,sha in game['input_sha256'].items()}
     if len(command)<3 or Path(command[1]).absolute()!=args.project.absolute() or command[2]!=tasks['map'] or sum(t.lower().endswith('.uproject') for t in command)!=1:
         raise ValueError('wrong actual city marker project/map')
@@ -102,6 +104,7 @@ def main():
     for name in ('project','capture','capture-job','out'):parser.add_argument('--'+name,type=Path,required=True)
     for name in ('engine-root','lock','scene','controls'):parser.add_argument('--'+name,type=Path)
     parser.add_argument('--runs',nargs=2,type=Path);parser.add_argument('--planner-variant',choices=VARIANTS)
+    parser.add_argument('--goal-horizon-policy',choices=POLICIES)
     parser.add_argument('--worker-source-commit',help='audit-only immutable historical worker SHA; original guarded bytes must match')
     parser.add_argument('--experiment-map');parser.add_argument('--start-before');parser.add_argument('--finish-before');args=parser.parse_args()
     project=args.project.absolute();unlinked(project)
@@ -114,6 +117,7 @@ def main():
         if args.action=='compare':
             if {r['planner_variant'] for r in reports}!=set(VARIANTS) or len({r['scene_sha256'] for r in reports})!=1:
                 raise ValueError('both complete variants on the same overlay required')
+            if len({r.get('goal_horizon_policy') for r in reports})!=1:raise ValueError('planner comparison must hold goal horizon fixed')
         write(args.out,dict(evidence_kind='actual_city_controlled_color_marker_comparison',reports=reports,
             interpretation='controlled visual color goals in one owned city overlay; all source poses and failures; not furniture recognition/generalization'))
         print(json.dumps([{k:r[k] for k in ('planner_variant','overall')} for r in reports],indent=2));return
@@ -141,7 +145,8 @@ def main():
         print(json.dumps({k:read(out/'fixture.json')[k] for k in ('original_actor_count','added_markers','requested_placements')}));return
     if not args.scene or not args.controls or not args.planner_variant:raise ValueError('prepared scene, current marker controls and frozen variant required')
     descriptor,original,binding,map_file=inspect_scene(args,build);controls=marker_controls(args.controls,project,build)
-    tasks=build_tasks(descriptor['map'],descriptor['map_sha256'],original,binding,args.planner_variant);write(out/'tasks.json',tasks)
+    if args.goal_horizon_policy!=controls.get('horizon_policy'):raise ValueError('matching horizon controls required before city execution')
+    tasks=build_tasks(descriptor['map'],descriptor['map_sha256'],original,binding,args.planner_variant,goal_horizon_policy=args.goal_horizon_policy);write(out/'tasks.json',tasks)
     write(out/'environment.json',dict(engine=version,native_build=build,marker_controls=controls['report']['overall'],python=sys.version,
         python_executable=sys.executable,truth_scope='separate post-run scoring only; no beacon coordinates/catalog supplied to native tasks or worker'))
     inputs={str(ROOT/build['binary']):build['binary_sha256'],str(map_file):tasks['map_sha256'],str(out/'tasks.json'):file_hash(out/'tasks.json')}

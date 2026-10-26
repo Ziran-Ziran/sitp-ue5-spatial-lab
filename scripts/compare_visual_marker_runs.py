@@ -26,7 +26,7 @@ def unique_argument(command,expected):
 def audit_run(directory,project,build,*,worker_source_commit=None):
     directory=Path(directory).absolute();project=Path(project).absolute()
     tasks=validate_tasks(read(directory/'tasks.json'))
-    if tasks['schema_version']!=2:raise ValueError('explicit version-two planner condition required')
+    if tasks['schema_version'] not in (2,3):raise ValueError('explicit versioned planner condition required')
     game=completed_job(directory/'game.job.json');fixture=completed_job(directory/'fixture.job.json')
     game_hashes={Path(p).absolute():sha for p,sha in game['input_sha256'].items()}
     fixture_hashes={Path(p).absolute():sha for p,sha in fixture['input_sha256'].items()}
@@ -60,7 +60,7 @@ def audit_run(directory,project,build,*,worker_source_commit=None):
     record=read(directory/'execution.json');truth=read(directory/'truth.json');report=evaluate(tasks,record,directory/'capture',truth)
     acceptance=control_acceptance(report,record)
     if not acceptance['passed']:raise ValueError('incomplete or invalid marker experiment')
-    return dict(variant=tasks['planner_variant'],report=report,truth_entities=truth['entities'],worker_source_binding=proof,
+    return dict(variant=tasks['planner_variant'],horizon_policy=tasks.get('goal_horizon_policy'),report=report,truth_entities=truth['entities'],worker_source_binding=proof,
         fixture_source_sha256=file_hash(script),native_binary_sha256=build['binary_sha256'],
         raw_execution_sha256=file_hash(directory/'execution.json'),manifest_sha256=tasks['manifest_sha256'],
         game_spec_sha256=file_hash(directory/'game.job.json'),game_status_sha256=file_hash(directory/'game.job.status.json'))
@@ -68,6 +68,7 @@ def audit_run(directory,project,build,*,worker_source_commit=None):
 
 def compare(audited):
     if len(audited)!=3 or {r['variant'] for r in audited}!=set(VARIANTS):raise ValueError('all three unique predeclared variants required')
+    if len({row.get('horizon_policy') for row in audited})!=1:raise ValueError('planner comparison must hold goal horizon fixed')
     for key in ('truth_entities','fixture_source_sha256','native_binary_sha256'):
         if any(row[key]!=audited[0][key] for row in audited):raise ValueError('variants change controlled world or native build')
     return dict(schema_version=1,evidence_kind='actual_fixed_visual_marker_planner_comparison',
